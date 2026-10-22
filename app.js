@@ -136,6 +136,18 @@ const togglePasswordBtn = document.getElementById("toggle-password-btn");
 const closeLoginModalBtn = document.getElementById("close-login-modal-btn");
 const loginRememberMe = document.getElementById("login-remember-me");
 
+// Yönetici Kayıt Ol (Register) Elementleri
+const authTabLogin = document.getElementById("auth-tab-login");
+const authTabRegister = document.getElementById("auth-tab-register");
+const authLoginSection = document.getElementById("auth-login-section");
+const authRegisterSection = document.getElementById("auth-register-section");
+const registerForm = document.getElementById("register-form");
+const registerFullnameInput = document.getElementById("register-fullname");
+const registerEmailInput = document.getElementById("register-email");
+const registerPasswordInput = document.getElementById("register-password");
+const registerPasswordConfirmInput = document.getElementById("register-password-confirm");
+const registerSubmitBtn = document.getElementById("register-submit-btn");
+
 // Navbar
 const headerSubtitle = document.getElementById("header-subtitle");
 const userDisplayName = document.getElementById("user-display-name");
@@ -306,7 +318,35 @@ let activeModalCustomer = null;
 // ============================================================================
 // 4. BAŞLANGIÇ (INIT) & TARİH SEÇİCİLERİ (GÜN / AY / YIL)
 // ============================================================================
+// Kullanıcı isteği doğrultusunda eski tüm şifreleri, admin oturumlarını ve mailleri temizleme
+function clearLegacyAuthData() {
+  const WIPE_FLAG = "ciftlik_auth_wiped_v6";
+  if (!localStorage.getItem(WIPE_FLAG)) {
+    try {
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith("ciftlik_admin_pwd_") || 
+                  k.startsWith("ciftlik_saved_login_") || 
+                  k === "ciftlik_admin_password" || 
+                  k === "ciftlik_aktif_kullanici" || 
+                  k === "ciftlik_remember_me" ||
+                  k === "ciftlik_auth_v4_cleaned")) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+      sessionStorage.clear();
+      localStorage.setItem(WIPE_FLAG, "true");
+      console.log("🧹 Tüm eski yönetici kayıtları ve oturum verileri sıfırlandı. Yeni kayıt bekleniyor.");
+    } catch (e) {
+      console.warn("Önbellek temizleme uyarısı:", e);
+    }
+  }
+}
+
 function initApp() {
+  clearLegacyAuthData();
   initDateSelectors();
   setupEventListeners();
   checkPersistedSession();
@@ -381,12 +421,23 @@ function setupEventListeners() {
   loginTabAdmin.addEventListener("click", () => switchLoginTab("admin"));
   loginTabCustomer.addEventListener("click", () => switchLoginTab("customer"));
 
+  // Giriş & Kayıt Ol Sekmeleri (Modal İçi)
+  if (authTabLogin) authTabLogin.addEventListener("click", () => switchAuthMode("login"));
+  if (authTabRegister) authTabRegister.addEventListener("click", () => switchAuthMode("register"));
+
   // Giriş Formu ve Etkileşimleri
   loginForm.addEventListener("submit", handleLogin);
   if (loginUsernameInput) loginUsernameInput.addEventListener("input", clearLoginAlerts);
   if (loginPasswordInput) loginPasswordInput.addEventListener("input", clearLoginAlerts);
   if (togglePasswordBtn) togglePasswordBtn.addEventListener("click", togglePasswordVisibility);
   if (closeLoginModalBtn) closeLoginModalBtn.addEventListener("click", closeLoginModal);
+
+  // Kayıt Formu ve Etkileşimleri
+  if (registerForm) registerForm.addEventListener("submit", handleRegisterSubmit);
+  if (registerFullnameInput) registerFullnameInput.addEventListener("input", clearLoginAlerts);
+  if (registerEmailInput) registerEmailInput.addEventListener("input", clearLoginAlerts);
+  if (registerPasswordInput) registerPasswordInput.addEventListener("input", clearLoginAlerts);
+  if (registerPasswordConfirmInput) registerPasswordConfirmInput.addEventListener("input", clearLoginAlerts);
 
   // Çıkış
   logoutBtn.addEventListener("click", handleLogout);
@@ -606,8 +657,42 @@ function switchLoginTab(mode) {
 }
 window.switchLoginTab = switchLoginTab;
 
+function switchAuthMode(mode = "login") {
+  clearLoginAlerts();
+
+  if (mode === "register") {
+    if (authTabRegister) {
+      authTabRegister.className = "flex-1 py-2.5 text-xs font-black rounded-xl bg-white text-emerald-800 shadow-xs transition cursor-pointer select-none";
+    }
+    if (authTabLogin) {
+      authTabLogin.className = "flex-1 py-2.5 text-xs font-black rounded-xl text-slate-600 hover:text-slate-900 transition cursor-pointer select-none";
+    }
+    if (authLoginSection) authLoginSection.classList.add("hidden");
+    if (authRegisterSection) authRegisterSection.classList.remove("hidden");
+    if (registerFullnameInput) registerFullnameInput.focus();
+  } else {
+    if (authTabLogin) {
+      authTabLogin.className = "flex-1 py-2.5 text-xs font-black rounded-xl bg-white text-emerald-800 shadow-xs transition cursor-pointer select-none";
+    }
+    if (authTabRegister) {
+      authTabRegister.className = "flex-1 py-2.5 text-xs font-black rounded-xl text-slate-600 hover:text-slate-900 transition cursor-pointer select-none";
+    }
+    if (authLoginSection) authLoginSection.classList.remove("hidden");
+    if (authRegisterSection) authRegisterSection.classList.add("hidden");
+    if (loginUsernameInput) loginUsernameInput.focus();
+  }
+}
+window.switchAuthMode = switchAuthMode;
+
+function openRegisterModal() {
+  if (loginView) loginView.classList.remove("hidden");
+  switchAuthMode("register");
+}
+window.openRegisterModal = openRegisterModal;
+
 function openLoginModal(mode = "admin") {
   if (loginView) loginView.classList.remove("hidden");
+  switchAuthMode("login");
   switchLoginTab(mode);
 
   // Önceki kayıtlı kullanıcı adı varsa doldur
@@ -633,6 +718,130 @@ function showLandingView() {
 }
 window.showLandingView = showLandingView;
 
+// ============================================================================
+// YÖNETİCİ KAYIT FORMU İŞLEYİCİSİ (REGISTER)
+// ============================================================================
+async function handleRegisterSubmit(e) {
+  e.preventDefault();
+  clearLoginAlerts();
+
+  const fullname = registerFullnameInput ? registerFullnameInput.value.trim() : "";
+  const email = registerEmailInput ? registerEmailInput.value.trim().toLowerCase() : "";
+  const password = registerPasswordInput ? registerPasswordInput.value.trim() : "";
+  const confirmPassword = registerPasswordConfirmInput ? registerPasswordConfirmInput.value.trim() : "";
+
+  // 1. Doğrulamalar
+  if (!fullname) {
+    showLoginError("Ad Soyad Eksik!", "Lütfen adınızı soyadınızı veya çiftliğinizin ismini giriniz.");
+    if (registerFullnameInput) registerFullnameInput.focus();
+    return;
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!email || !emailRegex.test(email)) {
+    showLoginError("Geçersiz E-posta Formatı!", "Lütfen geçerli bir yönetici e-posta adresi giriniz (Örn: admin@senlikciftligi.com).");
+    if (registerEmailInput) registerEmailInput.focus();
+    return;
+  }
+
+  if (!password || password.length < 4) {
+    showLoginError("Yetersiz Şifre!", "Lütfen en az 4 karakterden oluşan güvenli bir şifre belirleyiniz.");
+    if (registerPasswordInput) registerPasswordInput.focus();
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    showLoginError("Şifreler Uyuşmuyor!", "Girdiğiniz iki şifre birbiriyle eşleşmiyor. Lütfen tekrar yazınız.");
+    if (registerPasswordConfirmInput) registerPasswordConfirmInput.focus();
+    return;
+  }
+
+  const docKey = email.replace(/[^a-z0-9]/g, "_");
+
+  // Buton yükleniyor efekti
+  const submitBtn = registerSubmitBtn || document.getElementById("register-submit-btn");
+  const origBtnContent = submitBtn ? submitBtn.innerHTML : "";
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `<span>⏳ Çiftliğiniz Hazırlanıyor...</span>`;
+  }
+
+  try {
+    // 2. Bu e-posta daha önce kayıt olmuş mu kontrol et
+    let existingAccount = false;
+    try {
+      const existingDoc = await getDoc(doc(db, "admin_hesaplari", docKey));
+      if (existingDoc.exists()) {
+        existingAccount = true;
+      }
+    } catch (checkErr) {
+      console.warn("Hesap varlık kontrolü uyarısı:", checkErr);
+    }
+
+    if (existingAccount) {
+      showLoginError(
+        "Bu Hesap Zaten Kayıtlı!",
+        `"${email}" e-posta adresiyle sistemde zaten bir yönetici hesabı bulunmaktadır. Lütfen 'Giriş Yap' sekmesinden şifrenizle giriş yapınız.`
+      );
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = origBtnContent;
+      }
+      return;
+    }
+
+    // 3. Yeni Yöneticiyi Firestore'a Kaydet
+    const adminAccountData = {
+      adSoyad: fullname,
+      email: email,
+      sifre: password,
+      tenantKey: docKey,
+      olusturulduAt: serverTimestamp(),
+      sonGirisAt: serverTimestamp()
+    };
+
+    try {
+      await setDoc(doc(db, "admin_hesaplari", docKey), adminAccountData);
+    } catch (err) {
+      console.warn("Firestore admin kayıt uyarısı:", err);
+    }
+
+    // 4. Şifreyi yerel önbelleğe de yaz (hızlı doğrulama için)
+    localStorage.setItem("ciftlik_admin_pwd_" + docKey, password);
+    localStorage.setItem("ciftlik_saved_login_admin", email);
+
+    // Formu temizle
+    if (registerForm) registerForm.reset();
+
+    showToast(`🎉 Sayın ${fullname}, yönetici hesabınız ve bağımsız çiftlik veri tabanınız başarıyla oluşturuldu!`, "success", 5000);
+
+    // 5. Doğrudan bu yeni yönetici olarak oturumu başlat
+    const adminUser = {
+      id: "admin_" + docKey,
+      kullaniciAdi: email,
+      email: email,
+      adSoyad: `${fullname} (Yönetici)`,
+      rol: "admin",
+      tenantKey: docKey
+    };
+
+    setSession(adminUser, true);
+
+  } catch (err) {
+    console.error("Yönetici kayıt hatası:", err);
+    showLoginError("Kayıt Başarısız!", "Hesap açılırken bir hata meydana geldi: " + (err.message || err));
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = origBtnContent;
+    }
+  }
+}
+window.handleRegisterSubmit = handleRegisterSubmit;
+
+// ============================================================================
+// GİRİŞ FORMU İŞLEYİCİSİ (LOGIN)
+// ============================================================================
 async function handleLogin(e) {
   e.preventDefault();
   clearLoginAlerts();
@@ -664,32 +873,34 @@ async function handleLogin(e) {
     return;
   }
 
-  // 2. Admin Girişi (E-posta ve Şifre Kontrolü)
+  // 2. Admin Girişi (Önce Kayıtlı Hesap Kontrolü & Şifre Doğrulama)
   if (loginMode === "admin") {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(inputVal)) {
       showLoginError(
         "Geçersiz E-posta Formatı!", 
-        "Yönetici girişi için lütfen geçerli bir e-posta formatı giriniz (Örn: admin@ciftlik.com)."
+        "Yönetici girişi için lütfen geçerli bir e-posta adresi giriniz (Örn: admin@senlikciftligi.com)."
       );
       loginUsernameInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
       loginUsernameInput.focus();
       return;
     }
 
-    // Yönetici Şifre ve Hesap Kontrolü (Her yönetici e-postası kendi bağımsız çiftliğine ve şifresine sahiptir)
     const emailKey = inputVal.toLowerCase().trim();
     const docKey = emailKey.replace(/[^a-z0-9]/g, "_");
 
     // 1. Önce localStorage'da bu e-postaya ait kayıtlı şifre var mı bak
     let savedEmailPwd = localStorage.getItem("ciftlik_admin_pwd_" + docKey);
+    let adminFullName = "";
 
-    // 2. LocalStorage'da yoksa Firestore'dan kontrol et (farklı tarayıcı veya cihaz desteği)
+    // 2. LocalStorage'da yoksa Firestore'dan kontrol et
     if (!savedEmailPwd) {
       try {
         const adminDoc = await getDoc(doc(db, "admin_hesaplari", docKey));
         if (adminDoc.exists()) {
-          savedEmailPwd = adminDoc.data().sifre;
+          const docData = adminDoc.data();
+          savedEmailPwd = docData.sifre;
+          adminFullName = docData.adSoyad || "";
           if (savedEmailPwd) {
             localStorage.setItem("ciftlik_admin_pwd_" + docKey, savedEmailPwd);
           }
@@ -699,65 +910,51 @@ async function handleLogin(e) {
       }
     }
 
-    // 3. Varsayılan ilk demo admin özel durumu (admin@ciftlik.com)
-    if (!savedEmailPwd && (docKey === "admin_ciftlik_com" || emailKey === "admin@ciftlik.com")) {
-      savedEmailPwd = "123";
-      localStorage.setItem("ciftlik_admin_pwd_" + docKey, "123");
-    }
-
-    // 4. Şifre Doğrulama veya Yeni Yönetici Hesabı Kaydı
+    // 3. EĞER HESAP HİÇ KAYIT EDİLMEMİŞSE: Kesinlikle giriş yapamaz, kayıt olması istenir!
     if (!savedEmailPwd) {
-      // BU E-POSTA İLE İLK KEZ GİRİŞ YAPILIYOR:
-      // Tamamen YENİ ve BAĞIMSIZ bir yönetici hesabı oluştur!
-      try {
-        await setDoc(doc(db, "admin_hesaplari", docKey), {
-          email: inputVal,
-          sifre: password,
-          tenantKey: docKey,
-          olusturulduAt: serverTimestamp(),
-          sonGirisAt: serverTimestamp()
-        });
-      } catch (e) {
-        console.warn("Yeni admin Firestore kaydı uyarısı:", e);
-      }
-
-      localStorage.setItem("ciftlik_admin_pwd_" + docKey, password);
-      showToast(`Yeni yönetici hesabı oluşturuldu (${inputVal}). Çiftliğiniz hazırlandı!`, "success", 4000);
-    } else {
-      // DAHA ÖNCE BU E-POSTA İLE HESAP OLUŞTURULMUŞ:
-      // SADECE ve SADECE bu hesabın kendi şifresi geçerlidir! Asla "123" gibi genel arka kapı kabul edilmez!
-      if (password !== savedEmailPwd) {
-        showLoginError(
-          "Hatalı Yönetici Şifresi!", 
-          `"${inputVal}" yönetici hesabı için girdiğiniz şifre yanlış! Lütfen bu e-posta adresi için belirlediğiniz şifreyi giriniz.`
-        );
-        loginPasswordInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
-        loginPasswordInput.focus();
-        return;
-      }
-
-      // Başarılı girişte son giriş zamanını güncelle
-      try {
-        setDoc(doc(db, "admin_hesaplari", docKey), {
-          sonGirisAt: serverTimestamp()
-        }, { merge: true }).catch(() => {});
-      } catch (e) {}
+      showLoginError(
+        "Kayıtlı Yönetici Hesabı Bulunamadı!", 
+        `"${inputVal}" e-posta adresi sistemde kayıtlı değil. Lütfen önce yukarıdaki "✨ Yeni Yönetici Kaydı" sekmesinden çiftliğinizi ve hesabınızı oluşturunuz.`
+      );
+      loginUsernameInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
+      loginUsernameInput.focus();
+      return;
     }
+
+    // 4. Şifre Doğrulama (Sadece hesabın kendi belirlenen şifresi kabul edilir)
+    if (password !== savedEmailPwd) {
+      showLoginError(
+        "Hatalı Yönetici Şifresi!", 
+        `"${inputVal}" yönetici hesabı için girdiğiniz şifre yanlıştır! Lütfen kayıt olurken belirlediğiniz şifreyi giriniz.`
+      );
+      loginPasswordInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
+      loginPasswordInput.focus();
+      return;
+    }
+
+    // Başarılı girişte son giriş zamanını güncelle
+    try {
+      setDoc(doc(db, "admin_hesaplari", docKey), {
+        sonGirisAt: serverTimestamp()
+      }, { merge: true }).catch(() => {});
+    } catch (e) {}
 
     // Başarılı Yönetici Girişi
     const prefix = inputVal.split("@")[0];
     const capitalized = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+    const displayName = adminFullName ? `${adminFullName} (Yönetici)` : `${capitalized} (Yönetici)`;
 
     const adminUser = {
       id: "admin_" + docKey,
       kullaniciAdi: inputVal,
       email: inputVal,
-      adSoyad: `${capitalized} (Yönetici)`,
+      adSoyad: displayName,
       rol: "admin",
       tenantKey: docKey
     };
 
     setSession(adminUser, rememberMe);
+    showToast(`Hoş geldiniz, ${displayName}!`, "success");
     return;
   }
 

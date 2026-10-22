@@ -148,27 +148,27 @@
         <p class="text-xs text-slate-500 mt-0.5">Lütfen giriş türünüzü seçin</p>
       </div>
 
-      <!-- GİRİŞ TÜRÜ SEKMELERİ (ADMIN / MÜŞTERİ) -->
-      <div class="flex rounded-xl bg-slate-100 p-1 mb-4 relative z-10">
+      <!-- ANA MODAL SEKMESİ (GİRİŞ YAP / YENİ KAYIT) -->
+      <div class="flex rounded-2xl bg-slate-100 p-1 mb-4 border border-slate-200">
         <button 
           type="button" 
-          id="login-tab-admin" 
-          onclick="window.switchLoginTab && window.switchLoginTab('admin')"
-          class="flex-1 py-2.5 text-xs font-bold rounded-lg bg-white text-emerald-800 shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer select-none"
+          id="auth-tab-login" 
+          onclick="window.switchAuthMode && window.switchAuthMode('login')"
+          class="flex-1 py-2.5 text-xs font-black rounded-xl bg-white text-emerald-800 shadow-xs transition cursor-pointer select-none"
         >
-          <span>👑 Yönetici (Admin)</span>
+          🔑 Giriş Yap
         </button>
         <button 
           type="button" 
-          id="login-tab-customer" 
-          onclick="window.switchLoginTab && window.switchLoginTab('customer')"
-          class="flex-1 py-2.5 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5 cursor-pointer select-none"
+          id="auth-tab-register" 
+          onclick="window.switchAuthMode && window.switchAuthMode('register')"
+          class="flex-1 py-2.5 text-xs font-black rounded-xl text-slate-600 hover:text-slate-900 transition cursor-pointer select-none"
         >
-          <span>👤 Müşteri / Üretici</span>
+          ✨ Yeni Yönetici Kaydı
         </button>
       </div>
 
-      <!-- BELİRGİN GİRİŞ HATASI / YANLIŞ BİLGİ UYARI KUTUSU -->
+      <!-- BELİRGİN HATA / UYARI KUTUSU -->
       <div id="login-error-alert" class="hidden mb-4 p-3.5 bg-rose-50 border-2 border-rose-300 rounded-2xl text-xs font-semibold text-rose-800 flex items-start gap-3 animate-shake shadow-xs">
         <div class="p-1.5 bg-rose-200 text-rose-800 rounded-xl flex-shrink-0 mt-0.5">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -176,12 +176,12 @@
           </svg>
         </div>
         <div class="flex-1">
-          <div class="font-extrabold text-rose-900 text-sm" id="login-error-title">Giriş Başarısız!</div>
-          <div id="login-error-desc" class="text-rose-700 leading-relaxed mt-0.5">Kullanıcı adı veya şifre yanlış. Lütfen kontrol ediniz.</div>
+          <div class="font-extrabold text-rose-900 text-sm" id="login-error-title">İşlem Başarısız!</div>
+          <div id="login-error-desc" class="text-rose-700 leading-relaxed mt-0.5">Lütfen bilgilerinizi kontrol ediniz.</div>
         </div>
       </div>
 
-      <!-- BİLGİ / E-POSTA GÖNDERİLDİ BAŞARI KUTUSU -->
+      <!-- BİLGİ / BAŞARI KUTUSU -->
       <div id="login-info-alert" class="hidden mb-4 p-3.5 bg-emerald-50 border border-emerald-300 rounded-2xl text-xs font-semibold text-emerald-800 flex items-start gap-3 shadow-xs">
         <div class="p-1.5 bg-emerald-200 text-emerald-800 rounded-xl flex-shrink-0 mt-0.5">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -189,79 +189,208 @@
           </svg>
         </div>
         <div class="flex-1">
-          <div class="font-extrabold text-emerald-900 text-sm" id="login-info-title">E-posta Gönderildi!</div>
-          <div id="login-info-desc" class="text-emerald-700 leading-relaxed mt-0.5">Giriş bilgileri e-posta adresinize iletildi.</div>
+          <div class="font-extrabold text-emerald-900 text-sm" id="login-info-title">Başarılı!</div>
+          <div id="login-info-desc" class="text-emerald-700 leading-relaxed mt-0.5">İşleminiz başarıyla tamamlandı.</div>
         </div>
       </div>
 
-      <!-- Giriş Formu -->
-      <form id="login-form" class="space-y-4" novalidate>
-        
-        <div>
-          <label for="login-username" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5" id="login-username-label">
-            Yönetici E-posta Adresi
-          </label>
-          <div class="relative">
-            <input 
-              type="email" 
-              id="login-username" 
-              placeholder="ornek@ciftlik.com" 
-              required
-              class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
-            >
-            <svg class="w-5 h-5 text-slate-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-            </svg>
-          </div>
+      <!-- 1. GİRİŞ BÖLÜMÜ (LOGIN) -->
+      <div id="auth-login-section">
+        <!-- GİRİŞ TÜRÜ SEKMELERİ (ADMIN / MÜŞTERİ) -->
+        <div class="flex rounded-xl bg-slate-100 p-1 mb-4 relative z-10">
+          <button 
+            type="button" 
+            id="login-tab-admin" 
+            onclick="window.switchLoginTab && window.switchLoginTab('admin')"
+            class="flex-1 py-2 text-xs font-bold rounded-lg bg-white text-emerald-800 shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer select-none"
+          >
+            <span>👑 Yönetici (Admin)</span>
+          </button>
+          <button 
+            type="button" 
+            id="login-tab-customer" 
+            onclick="window.switchLoginTab && window.switchLoginTab('customer')"
+            class="flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5 cursor-pointer select-none"
+          >
+            <span>👤 Müşteri / Üretici</span>
+          </button>
         </div>
 
-        <div>
-          <label for="login-password" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-            Şifre
-          </label>
-          <div class="relative">
-            <input 
-              type="password" 
-              id="login-password" 
-              placeholder="••••••••" 
-              required
-              class="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
-            >
-            <svg class="w-5 h-5 text-slate-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-            <button type="button" id="toggle-password-btn" class="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600 transition p-0.5" title="Şifreyi Göster/Gizle">
-              <svg id="eye-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        <!-- Giriş Formu -->
+        <form id="login-form" class="space-y-4" novalidate>
+          <div>
+            <label for="login-username" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5" id="login-username-label">
+              Yönetici E-posta Adresi
+            </label>
+            <div class="relative">
+              <input 
+                type="email" 
+                id="login-username" 
+                placeholder="ornek@ciftlik.com" 
+                required
+                class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+              >
+              <svg class="w-5 h-5 text-slate-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
               </svg>
+            </div>
+          </div>
+
+          <div>
+            <label for="login-password" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+              Şifre
+            </label>
+            <div class="relative">
+              <input 
+                type="password" 
+                id="login-password" 
+                placeholder="••••••••" 
+                required
+                class="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+              >
+              <svg class="w-5 h-5 text-slate-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <button type="button" id="toggle-password-btn" class="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600 transition p-0.5" title="Şifreyi Göster/Gizle">
+                <svg id="eye-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Beni Hatırla Seçeneği -->
+          <div class="flex items-center justify-between text-xs pt-0.5">
+            <label class="flex items-center gap-2 cursor-pointer select-none text-slate-600 hover:text-slate-900 font-semibold">
+              <input type="checkbox" id="login-remember-me" checked class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 transition">
+              <span>Beni Hatırla</span>
+            </label>
+          </div>
+
+          <button 
+            type="submit" 
+            id="login-submit-btn" 
+            class="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2 text-sm mt-3 cursor-pointer"
+          >
+            <span id="login-btn-text">Yönetici Olarak Giriş Yap</span>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+          </button>
+
+          <!-- Kayıt Ol Linki -->
+          <div class="text-center pt-2">
+            <button 
+              type="button" 
+              onclick="window.switchAuthMode && window.switchAuthMode('register')" 
+              class="text-xs font-bold text-emerald-700 hover:text-emerald-900 transition underline cursor-pointer"
+            >
+              Henüz yönetici hesabınız yok mu? Yeni Hesap Oluşturun
             </button>
           </div>
-          <p id="login-admin-hint" class="text-[11px] text-emerald-700 font-semibold mt-1.5 flex items-center gap-1">
-            <span>💡</span>
-            <span>Kendi e-postanızı ve dilediğiniz şifreyi girip doğrudan oturum açabilirsiniz.</span>
-          </p>
+        </form>
+      </div>
+
+      <!-- 2. KAYIT OL BÖLÜMÜ (YENİ YÖNETİCİ KAYDI) -->
+      <div id="auth-register-section" class="hidden">
+        <div class="mb-4 bg-emerald-50 border border-emerald-200 rounded-2xl p-3 text-xs text-emerald-900 leading-relaxed">
+          <strong>🌿 Kendi Çiftliğinizi Başlatın:</strong> Kayıt olduğunuzda e-postanıza özel bağımsız bir çiftlik veri tabanı açılır.
         </div>
 
-        <!-- Beni Hatırla Seçeneği -->
-        <div class="flex items-center justify-between text-xs pt-0.5">
-          <label class="flex items-center gap-2 cursor-pointer select-none text-slate-600 hover:text-slate-900 font-semibold">
-            <input type="checkbox" id="login-remember-me" checked class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 transition">
-            <span>Beni Hatırla (Her seferinde şifre sorma)</span>
-          </label>
-        </div>
+        <form id="register-form" class="space-y-3.5" novalidate>
+          <div>
+            <label for="register-fullname" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+              Ad Soyad / Çiftlik İsmi
+            </label>
+            <div class="relative">
+              <input 
+                type="text" 
+                id="register-fullname" 
+                placeholder="Örn: Rabia Şenlik veya Şenlik Çiftliği" 
+                required
+                class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+              >
+              <svg class="w-5 h-5 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+          </div>
 
-        <button 
-          type="submit" 
-          id="login-submit-btn" 
-          class="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2 text-sm mt-3 cursor-pointer"
-        >
-          <span id="login-btn-text">Yönetici Olarak Giriş Yap</span>
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-          </svg>
-        </button>
-      </form>
+          <div>
+            <label for="register-email" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+              Yönetici E-posta Adresi
+            </label>
+            <div class="relative">
+              <input 
+                type="email" 
+                id="register-email" 
+                placeholder="admin@senlikciftligi.com" 
+                required
+                class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+              >
+              <svg class="w-5 h-5 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+              </svg>
+            </div>
+          </div>
+
+          <div>
+            <label for="register-password" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+              Yeni Şifre Belirleyin
+            </label>
+            <div class="relative">
+              <input 
+                type="password" 
+                id="register-password" 
+                placeholder="En az 4 karakter" 
+                required
+                class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+              >
+              <svg class="w-5 h-5 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+          </div>
+
+          <div>
+            <label for="register-password-confirm" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+              Şifre Tekrarı
+            </label>
+            <div class="relative">
+              <input 
+                type="password" 
+                id="register-password-confirm" 
+                placeholder="Şifrenizi tekrar girin" 
+                required
+                class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+              >
+              <svg class="w-5 h-5 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            id="register-submit-btn" 
+            class="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2 text-sm mt-3 cursor-pointer"
+          >
+            <span>✨ Yönetici Hesabını Oluştur & Giriş Yap</span>
+          </button>
+
+          <!-- Giriş Yap Bağlantısı -->
+          <div class="text-center pt-2">
+            <button 
+              type="button" 
+              onclick="window.switchAuthMode && window.switchAuthMode('login')" 
+              class="text-xs font-bold text-slate-600 hover:text-slate-900 transition underline cursor-pointer"
+            >
+              Zaten hesabınız var mı? Buradan Giriş Yapın
+            </button>
+          </div>
+        </form>
+      </div>
 
     </div>
   </div>
@@ -287,24 +416,31 @@
           </div>
         </div>
 
-        <!-- Yalnızca Sağ Üstte Yer Alan Giriş Butonları (Mobilde Kusursuz Uyum) -->
-        <div class="flex items-center gap-1.5 sm:gap-3 shrink-0">
+        <!-- Yalnızca Sağ Üstte Yer Alan Giriş & Kayıt Butonları -->
+        <div class="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           <button 
             type="button" 
             onclick="window.openLoginModal && window.openLoginModal('customer')"
-            class="inline-flex items-center gap-1 px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition shadow-xs cursor-pointer active:scale-95"
+            class="inline-flex items-center gap-1 px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition shadow-xs cursor-pointer active:scale-95"
           >
             <span>👤 Müşteri<span class="hidden sm:inline"> Portalı</span></span>
           </button>
           <button 
             type="button" 
+            onclick="window.openRegisterModal && window.openRegisterModal()"
+            class="inline-flex items-center gap-1 px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition shadow-xs cursor-pointer active:scale-95"
+          >
+            <span>✨ Kayıt Ol</span>
+          </button>
+          <button 
+            type="button" 
             onclick="window.openLoginModal && window.openLoginModal('admin')"
-            class="inline-flex items-center gap-1 sm:gap-1.5 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-sm font-extrabold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white transition shadow-md shadow-emerald-600/30 cursor-pointer active:scale-95"
+            class="inline-flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4.5 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-sm font-extrabold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white transition shadow-md shadow-emerald-600/30 cursor-pointer active:scale-95"
           >
             <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
             </svg>
-            <span>👑 Yönetici<span class="hidden sm:inline"> Girişi</span></span>
+            <span>👑 Giriş Yap</span>
           </button>
         </div>
 
