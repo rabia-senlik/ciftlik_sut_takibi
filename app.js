@@ -9,6 +9,7 @@ import {
   collection, 
   addDoc, 
   setDoc,
+  getDoc,
   deleteDoc, 
   doc, 
   onSnapshot, 
@@ -34,16 +35,68 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Koleksiyonlar
+// Temel Koleksiyon İsimleri
 const COL_RECORDS = "sut_kayitlari";
 const COL_USERS = "kullanicilar";
 const COL_SETTINGS = "ayarlar";
 const COL_CUSTOMER_LOGS = "musteri_islemleri";
 
 // ============================================================================
+// ÇOKLU YÖNETİCİ / HESAP AYRIŞTIRMA (MULTI-TENANCY) YARDIMCILARI
+// Her yönetici e-postası tamamen kendi bağımsız çiftlik veri tabanını kullanır
+// ============================================================================
+function getCurrentTenantKey() {
+  if (currentUser) {
+    if (currentUser.tenantKey) return currentUser.tenantKey;
+    if (currentUser.email) return currentUser.email.toLowerCase().trim().replace(/[^a-z0-9]/g, "_");
+    if (currentUser.kullaniciAdi) return currentUser.kullaniciAdi.toLowerCase().trim().replace(/[^a-z0-9]/g, "_");
+  }
+  return "admin_ciftlik_com";
+}
+
+function getTenantColName(baseColName, overrideTenantKey) {
+  const tKey = overrideTenantKey || getCurrentTenantKey();
+  // admin@ciftlik.com veya default_admin için ana tabloları koru
+  if (tKey === "admin_ciftlik_com" || tKey === "default_admin" || !tKey) {
+    return baseColName;
+  }
+  return `${baseColName}_${tKey}`;
+}
+
+// Aktif Firestore Dinleyici Abonelikleri
+let unsubRecords = null;
+let unsubUsers = null;
+let unsubSettings = null;
+let unsubCustomerLogs = null;
+let unsubMyLogs = null;
+
+function unsubscribeAllListeners() {
+  if (typeof unsubRecords === "function") {
+    try { unsubRecords(); } catch (e) {}
+    unsubRecords = null;
+  }
+  if (typeof unsubUsers === "function") {
+    try { unsubUsers(); } catch (e) {}
+    unsubUsers = null;
+  }
+  if (typeof unsubSettings === "function") {
+    try { unsubSettings(); } catch (e) {}
+    unsubSettings = null;
+  }
+  if (typeof unsubCustomerLogs === "function") {
+    try { unsubCustomerLogs(); } catch (e) {}
+    unsubCustomerLogs = null;
+  }
+  if (typeof unsubMyLogs === "function") {
+    try { unsubMyLogs(); } catch (e) {}
+    unsubMyLogs = null;
+  }
+}
+
+// ============================================================================
 // 2. GLOBAL DURUM (STATE)
 // ============================================================================
-let currentUser = null; // { kullaniciAdi, adSoyad, rol, id, email }
+let currentUser = null; // { kullaniciAdi, adSoyad, rol, id, email, tenantKey }
 let loginMode = "admin"; // "admin" veya "customer"
 let factoryPrice = 28.0; // Fabrikaya Satış Litre Fiyatı (TL)
 let publicPrice = 23.0;  // Halka Ödenecek / Köylüden Alış Litre Fiyatı (TL)
@@ -256,8 +309,6 @@ let activeModalCustomer = null;
 function initApp() {
   initDateSelectors();
   setupEventListeners();
-  initSettingsListener();
-  initUsersListener();
   checkPersistedSession();
 }
 
@@ -626,37 +677,71 @@ async function handleLogin(e) {
       return;
     }
 
-    // Yönetici Şifre Kontrolü (Her yönetici e-postası kendi belirlediği şifreyi kullanabilir)
+    // Yönetici Şifre ve Hesap Kontrolü (Her yönetici e-postası kendi bağımsız çiftliğine ve şifresine sahiptir)
     const emailKey = inputVal.toLowerCase().trim();
-    const savedEmailPwd = localStorage.getItem("ciftlik_admin_pwd_" + emailKey);
-    const globalAdminPwd = localStorage.getItem("ciftlik_admin_password");
+    const docKey = emailKey.replace(/[^a-z0-9]/g, "_");
 
-    // Eğer bu yönetici e-postası ilk defa giriliyorsa:
-    // Girdiği şifreyi bu e-postanın yeni yönetici şifresi olarak doğrudan kabul et ve kaydet!
+    // 1. Önce localStorage'da bu e-postaya ait kayıtlı şifre var mı bak
+    let savedEmailPwd = localStorage.getItem("ciftlik_admin_pwd_" + docKey);
+
+    // 2. LocalStorage'da yoksa Firestore'dan kontrol et (farklı tarayıcı veya cihaz desteği)
     if (!savedEmailPwd) {
-      localStorage.setItem("ciftlik_admin_pwd_" + emailKey, password);
-      localStorage.setItem("ciftlik_admin_password", password);
-    } else {
-      // Daha önce bu e-posta için şifre belirlenmişse kontrol et (veya acil durum '123')
-      const validPasswords = [
-        savedEmailPwd,
-        globalAdminPwd,
-        "123"
-      ].filter(Boolean);
+      try {
+        const adminDoc = await getDoc(doc(db, "admin_hesaplari", docKey));
+        if (adminDoc.exists()) {
+          savedEmailPwd = adminDoc.data().sifre;
+          if (savedEmailPwd) {
+            localStorage.setItem("ciftlik_admin_pwd_" + docKey, savedEmailPwd);
+          }
+        }
+      } catch (err) {
+        console.warn("Admin Firestore kontrolü uyarısı:", err);
+      }
+    }
 
-      if (!validPasswords.includes(password)) {
+    // 3. Varsayılan ilk demo admin özel durumu (admin@ciftlik.com)
+    if (!savedEmailPwd && (docKey === "admin_ciftlik_com" || emailKey === "admin@ciftlik.com")) {
+      savedEmailPwd = "123";
+      localStorage.setItem("ciftlik_admin_pwd_" + docKey, "123");
+    }
+
+    // 4. Şifre Doğrulama veya Yeni Yönetici Hesabı Kaydı
+    if (!savedEmailPwd) {
+      // BU E-POSTA İLE İLK KEZ GİRİŞ YAPILIYOR:
+      // Tamamen YENİ ve BAĞIMSIZ bir yönetici hesabı oluştur!
+      try {
+        await setDoc(doc(db, "admin_hesaplari", docKey), {
+          email: inputVal,
+          sifre: password,
+          tenantKey: docKey,
+          olusturulduAt: serverTimestamp(),
+          sonGirisAt: serverTimestamp()
+        });
+      } catch (e) {
+        console.warn("Yeni admin Firestore kaydı uyarısı:", e);
+      }
+
+      localStorage.setItem("ciftlik_admin_pwd_" + docKey, password);
+      showToast(`Yeni yönetici hesabı oluşturuldu (${inputVal}). Çiftliğiniz hazırlandı!`, "success", 4000);
+    } else {
+      // DAHA ÖNCE BU E-POSTA İLE HESAP OLUŞTURULMUŞ:
+      // SADECE ve SADECE bu hesabın kendi şifresi geçerlidir! Asla "123" gibi genel arka kapı kabul edilmez!
+      if (password !== savedEmailPwd) {
         showLoginError(
           "Hatalı Yönetici Şifresi!", 
-          `"${inputVal}" e-postası için belirlediğiniz şifre uyuşmuyor. Lütfen doğru şifrenizi giriniz veya "123" ile giriş yapıp üst menüden şifrenizi yenileyiniz.`
+          `"${inputVal}" yönetici hesabı için girdiğiniz şifre yanlış! Lütfen bu e-posta adresi için belirlediğiniz şifreyi giriniz.`
         );
         loginPasswordInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
         loginPasswordInput.focus();
         return;
       }
 
-      // Doğru giriş yapıldığında şifreyi sabitle
-      localStorage.setItem("ciftlik_admin_pwd_" + emailKey, password);
-      localStorage.setItem("ciftlik_admin_password", password);
+      // Başarılı girişte son giriş zamanını güncelle
+      try {
+        setDoc(doc(db, "admin_hesaplari", docKey), {
+          sonGirisAt: serverTimestamp()
+        }, { merge: true }).catch(() => {});
+      } catch (e) {}
     }
 
     // Başarılı Yönetici Girişi
@@ -664,22 +749,37 @@ async function handleLogin(e) {
     const capitalized = prefix.charAt(0).toUpperCase() + prefix.slice(1);
 
     const adminUser = {
-      id: "admin_" + inputVal.replace(/[^a-zA-Z0-9]/g, "_"),
+      id: "admin_" + docKey,
       kullaniciAdi: inputVal,
       email: inputVal,
       adSoyad: `${capitalized} (Yönetici)`,
-      rol: "admin"
+      rol: "admin",
+      tenantKey: docKey
     };
 
-    // Girişte bildirim gönderimi kapalı: Sessizce ve doğrudan oturum açılır
     setSession(adminUser, rememberMe);
     return;
   }
 
-  // 3. Müşteri / Üretici Girişi (Koleksiyondan eşleştir)
-  const usernameMatch = allCustomers.find(c => 
+  // 3. Müşteri / Üretici Girişi (Önce yerel listeden, gerekirse küresel dizinden doğrula)
+  let usernameMatch = allCustomers.find(c => 
     c.kullaniciAdi.toLowerCase() === inputVal || (c.email && c.email.toLowerCase() === inputVal)
   );
+  let custTenantKey = "admin_ciftlik_com";
+
+  if (!usernameMatch) {
+    try {
+      const globalDoc = await getDoc(doc(db, "musteriler_global", inputVal));
+      if (globalDoc.exists()) {
+        usernameMatch = { id: globalDoc.id, ...globalDoc.data() };
+        custTenantKey = usernameMatch.tenantKey || "admin_ciftlik_com";
+      }
+    } catch (err) {
+      console.warn("Global müşteri sorgu hatası:", err);
+    }
+  } else {
+    custTenantKey = usernameMatch.tenantKey || getCurrentTenantKey();
+  }
 
   if (!usernameMatch) {
     showLoginError(
@@ -708,7 +808,8 @@ async function handleLogin(e) {
     adSoyad: usernameMatch.adSoyad,
     rol: "musteri",
     email: usernameMatch.email || "",
-    telefon: usernameMatch.telefon || ""
+    telefon: usernameMatch.telefon || "",
+    tenantKey: custTenantKey
   };
   setSession(customerUser, rememberMe);
   showToast(`Hoş geldiniz, ${customerUser.adSoyad}!`, "success");
@@ -738,6 +839,9 @@ function checkPersistedSession() {
     const raw = rawSession || (isRemembered ? rawLocal : null);
     if (raw) {
       currentUser = JSON.parse(raw);
+      if (!currentUser.tenantKey) {
+        currentUser.tenantKey = (currentUser.email || currentUser.kullaniciAdi || "admin_ciftlik_com").toLowerCase().replace(/[^a-z0-9]/g, "_");
+      }
       applyUserView();
     } else {
       showLandingView();
@@ -748,7 +852,12 @@ function checkPersistedSession() {
 }
 
 function handleLogout() {
+  unsubscribeAllListeners();
   currentUser = null;
+  allRecords = [];
+  allCustomers = [];
+  allCustomerLogs = [];
+  formProducers = [];
   localStorage.removeItem("ciftlik_aktif_kullanici");
   sessionStorage.removeItem("ciftlik_aktif_kullanici");
   showLandingView();
@@ -761,6 +870,24 @@ function applyUserView() {
     return;
   }
 
+  // 1. Önceki tüm aktif dinleyicileri iptal et
+  unsubscribeAllListeners();
+
+  // 2. Bellekteki eski adminin verilerini sıfırla (asla diğer admine sızmasın)
+  allRecords = [];
+  allCustomers = [];
+  allCustomerLogs = [];
+  formProducers = [];
+
+  // 3. Tablo ve kartları hemen temizle
+  if (recordsTableBody) recordsTableBody.innerHTML = "";
+  if (customersTableBody) customersTableBody.innerHTML = "";
+  if (producerListBody) producerListBody.innerHTML = "";
+  updateDashboardCards([]);
+  renderTable([]);
+  renderCustomersTable();
+  renderFormProducerList();
+
   if (landingView) landingView.classList.add("hidden");
   if (loginView) loginView.classList.add("hidden");
   if (mainHeader) mainHeader.classList.remove("hidden");
@@ -768,10 +895,9 @@ function applyUserView() {
   userDisplayName.textContent = currentUser.adSoyad;
   userAvatar.textContent = currentUser.adSoyad.charAt(0).toUpperCase();
 
-
   if (currentUser.rol === "admin") {
     // YÖNETİCİ PANELİ
-    headerSubtitle.textContent = "Yönetici Paneli";
+    headerSubtitle.textContent = `Yönetici Paneli (${currentUser.email || currentUser.kullaniciAdi})`;
     userRoleTag.textContent = "Yönetici";
     userRoleTag.className = "text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-extrabold";
     if (emailReportBtn) emailReportBtn.classList.remove("hidden");
@@ -782,8 +908,12 @@ function applyUserView() {
     if (factoryPriceInput) factoryPriceInput.value = factoryPrice;
     if (publicPriceInput) publicPriceInput.value = publicPrice;
 
+    // Bu yöneticinin kendine özel koleksiyonlarını dinlemeye başla
+    initSettingsListener();
+    initUsersListener();
     listenToRecords();
     listenToAllCustomerLogs();
+    renderMatrixTable();
   } else {
     // MÜŞTERİ PORTALI
     headerSubtitle.textContent = "Müşteri / Üretici Portalı";
@@ -794,18 +924,19 @@ function applyUserView() {
     customerView.classList.remove("hidden");
 
     custPortalWelcome.textContent = `Hoş Geldiniz, ${currentUser.adSoyad}!`;
-    updateCustomerPortalStats();
-    listenToMyCustomerLogs(currentUser.kullaniciAdi);
+    initSettingsListener(currentUser.tenantKey);
+    listenToMyCustomerLogs(currentUser.kullaniciAdi, currentUser.tenantKey);
   }
 }
 
 // ============================================================================
 // 7. FİYAT AYARLARI (FABRİKA SATIŞ & HALK ALIŞ FİYATLARI)
 // ============================================================================
-function initSettingsListener() {
+function initSettingsListener(overrideTenantKey) {
   try {
-    const docRef = doc(db, COL_SETTINGS, "fiyatlar");
-    onSnapshot(docRef, (docSnap) => {
+    const colName = getTenantColName(COL_SETTINGS, overrideTenantKey);
+    const docRef = doc(db, colName, "fiyatlar");
+    unsubSettings = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const d = docSnap.data();
         if (d.fabrikaFiyati) factoryPrice = Number(d.fabrikaFiyati);
@@ -863,7 +994,8 @@ async function handleSavePrices(e) {
   }
 
   try {
-    await setDoc(doc(db, COL_SETTINGS, "fiyatlar"), {
+    const colName = getTenantColName(COL_SETTINGS);
+    await setDoc(doc(db, colName, "fiyatlar"), {
       fabrikaFiyati: fPrice,
       halkAlisFiyati: pPrice,
       guncellendiAt: serverTimestamp()
@@ -891,7 +1023,7 @@ function closeAdminPasswordModal() {
   if (adminPasswordModal) adminPasswordModal.classList.add("hidden");
 }
 
-function handleSaveAdminPassword(e) {
+async function handleSaveAdminPassword(e) {
   e.preventDefault();
   const newPwd = newAdminPasswordInput ? newAdminPasswordInput.value.trim() : "";
   if (!newPwd) {
@@ -899,12 +1031,24 @@ function handleSaveAdminPassword(e) {
     return;
   }
 
-  const emailKey = (currentUser && currentUser.email) ? currentUser.email.toLowerCase().trim() : "admin";
-  localStorage.setItem("ciftlik_admin_pwd_" + emailKey, newPwd);
-  localStorage.setItem("ciftlik_admin_password", newPwd);
+  const emailKey = (currentUser && currentUser.email) ? currentUser.email.toLowerCase().trim() : "admin@ciftlik.com";
+  const docKey = emailKey.replace(/[^a-z0-9]/g, "_");
+
+  localStorage.setItem("ciftlik_admin_pwd_" + docKey, newPwd);
+
+  try {
+    await setDoc(doc(db, "admin_hesaplari", docKey), {
+      email: currentUser ? currentUser.email : "admin@ciftlik.com",
+      sifre: newPwd,
+      tenantKey: docKey,
+      guncellendiAt: serverTimestamp()
+    }, { merge: true });
+  } catch (err) {
+    console.warn("Firestore şifre kaydı uyarısı:", err);
+  }
 
   closeAdminPasswordModal();
-  showToast("Yönetici şifreniz başarıyla güncellendi! Sonraki girişlerinizde bu şifreyi kullanabilirsiniz.", "success", 5000);
+  showToast("Yönetici şifreniz başarıyla güncellendi! Sonraki tüm girişlerinizde bu şifreyi kullanabilirsiniz.", "success", 5000);
 }
 
 // ============================================================================
@@ -1091,12 +1235,12 @@ async function handleAdminFormSubmit(e) {
     };
 
     // 1. Günlük süt kaydını Firestore'a ekle
-    await addDoc(collection(db, COL_RECORDS), recordPayload);
+    await addDoc(collection(db, getTenantColName(COL_RECORDS)), recordPayload);
 
     // 2. Müşteri loglarını Firestore'a işle (Ödendi/Ödenmedi durumuyla beraber)
     for (const prod of formProducers) {
       if (prod.musteriKullaniciAdi) {
-        await addDoc(collection(db, COL_CUSTOMER_LOGS), {
+        await addDoc(collection(db, getTenantColName(COL_CUSTOMER_LOGS)), {
           tarih: selectedDate,
           musteriKullaniciAdi: prod.musteriKullaniciAdi,
           musteriAdSoyad: prod.adSoyad,
@@ -1136,8 +1280,9 @@ async function handleAdminFormSubmit(e) {
 // ============================================================================
 function listenToRecords() {
   try {
-    const q = query(collection(db, COL_RECORDS), orderBy("tarih", "desc"));
-    onSnapshot(q, (snapshot) => {
+    const colName = getTenantColName(COL_RECORDS);
+    const q = query(collection(db, colName), orderBy("tarih", "desc"));
+    unsubRecords = onSnapshot(q, (snapshot) => {
       allRecords = [];
       snapshot.forEach(docSnap => {
         allRecords.push({ id: docSnap.id, ...docSnap.data() });
@@ -1251,8 +1396,9 @@ function filterRecords(term) {
 // ============================================================================
 function initUsersListener() {
   try {
-    const q = query(collection(db, COL_USERS), orderBy("adSoyad", "asc"));
-    onSnapshot(q, (snapshot) => {
+    const colName = getTenantColName(COL_USERS);
+    const q = query(collection(db, colName), orderBy("adSoyad", "asc"));
+    unsubUsers = onSnapshot(q, (snapshot) => {
       allCustomers = [];
       snapshot.forEach(docSnap => {
         allCustomers.push({ id: docSnap.id, ...docSnap.data() });
@@ -1301,7 +1447,8 @@ async function handleCreateNewCustomer(e) {
   }
 
   try {
-    await addDoc(collection(db, COL_USERS), {
+    const tKey = getCurrentTenantKey();
+    const custPayload = {
       adSoyad,
       kullaniciAdi,
       email: kullaniciAdi.includes("@") ? kullaniciAdi : "",
@@ -1310,8 +1457,16 @@ async function handleCreateNewCustomer(e) {
       bolge,
       kesilecekPara,
       rol: "musteri",
+      tenantKey: tKey,
+      adminEmail: (currentUser && currentUser.email) || "",
       olusturulduAt: serverTimestamp()
-    });
+    };
+
+    // Bu adminin özel koleksiyonuna ekle
+    await addDoc(collection(db, getTenantColName(COL_USERS)), custPayload);
+
+    // Müşterinin portala bağımsız olarak giriş yapabilmesi için küresel dizine de kaydet
+    await setDoc(doc(db, "musteriler_global", kullaniciAdi), custPayload, { merge: true });
 
     showToast(`"${adSoyad}" başarıyla müşteri/üretici olarak eklendi!`, "success");
     newCustomerForm.reset();
@@ -1406,7 +1561,7 @@ function renderCustomersTable() {
   customersTableBody.querySelectorAll(".delete-customer-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       if (confirm(`"${btn.dataset.name}" isimli müşteriyi silmek istediğinize emin misiniz?`)) {
-        deleteDoc(doc(db, COL_USERS, btn.dataset.id))
+        deleteDoc(doc(db, getTenantColName(COL_USERS), btn.dataset.id))
           .then(() => showToast("Müşteri hesabı silindi.", "info"))
           .catch(err => showToast("Silme hatası: " + err.message, "error"));
       }
@@ -1500,7 +1655,7 @@ function renderCustomerPaymentModalRecords() {
 
 async function toggleCustomerLogPaid(logId, newStatus) {
   try {
-    await setDoc(doc(db, COL_CUSTOMER_LOGS, logId), {
+    await setDoc(doc(db, getTenantColName(COL_CUSTOMER_LOGS), logId), {
       odendi: newStatus,
       odendiGuncellendiAt: serverTimestamp()
     }, { merge: true });
@@ -1522,7 +1677,7 @@ async function markAllLogsPaidForCustomer() {
 
   try {
     for (const log of unpaidLogs) {
-      await setDoc(doc(db, COL_CUSTOMER_LOGS, log.id), {
+      await setDoc(doc(db, getTenantColName(COL_CUSTOMER_LOGS), log.id), {
         odendi: true,
         odendiGuncellendiAt: serverTimestamp()
       }, { merge: true });
@@ -1657,6 +1812,7 @@ function getMatrixData() {
   }
 
   // Üreticileri belirle (allCustomers varsa kullan, yoksa SEED listesini temel al)
+  // Üreticileri belirle (allCustomers varsa kullan, yoksa sadece varsayılan adminde SEED listesini temel al)
   let baseCustomers = [];
   if (allCustomers && allCustomers.length > 0) {
     baseCustomers = allCustomers.map(c => ({
@@ -1667,14 +1823,19 @@ function getMatrixData() {
       kesilecekPara: Number(c.kesilecekPara) || 0
     }));
   } else {
-    baseCustomers = EXCEL_SEED_DATA.map((s, idx) => ({
-      id: "seed_" + idx,
-      adSoyad: s.adSoyad,
-      kullaniciAdi: s.adSoyad.toLowerCase().replace(/[^a-z0-9]/g, "_"),
-      bolge: s.bolge.toUpperCase(),
-      kesilecekPara: s.kesilecekPara || 0,
-      seedDays: s.days
-    }));
+    const tKey = getCurrentTenantKey();
+    if (tKey === "admin_ciftlik_com" || tKey === "default_admin") {
+      baseCustomers = EXCEL_SEED_DATA.map((s, idx) => ({
+        id: "seed_" + idx,
+        adSoyad: s.adSoyad,
+        kullaniciAdi: s.adSoyad.toLowerCase().replace(/[^a-z0-9]/g, "_"),
+        bolge: s.bolge.toUpperCase(),
+        kesilecekPara: s.kesilecekPara || 0,
+        seedDays: s.days
+      }));
+    } else {
+      baseCustomers = [];
+    }
   }
 
   // Bölge filtresi uygula
@@ -1723,18 +1884,24 @@ function getMatrixData() {
         if (log && log.miktar !== undefined) {
           val = Number(log.miktar) || 0;
         } else {
-          // 2. localStorage kontrol et
-          const localKey = `matrix_milk_${cust.kullaniciAdi}_${col.fullDate}`;
-          const localSaved = localStorage.getItem(localKey);
+          // 2. localStorage kontrol et (Tenant bazlı)
+          const tKey = getCurrentTenantKey();
+          const localKey = `matrix_milk_${tKey}_${cust.kullaniciAdi}_${col.fullDate}`;
+          let localSaved = localStorage.getItem(localKey);
+          if (localSaved === null && (tKey === "admin_ciftlik_com" || tKey === "default_admin")) {
+            localSaved = localStorage.getItem(`matrix_milk_${cust.kullaniciAdi}_${col.fullDate}`);
+          }
+
           if (localSaved !== null) {
             val = Number(localSaved) || 0;
-          } else if (cust.seedDays && cust.seedDays[col.dayStr] !== undefined) {
-            val = Number(cust.seedDays[col.dayStr]) || 0;
-          } else {
-            // Seed datadan isim eşleştir
-            const seedMatch = EXCEL_SEED_DATA.find(s => s.adSoyad.toLowerCase() === cust.adSoyad.toLowerCase());
-            if (seedMatch && seedMatch.days && seedMatch.days[col.dayStr] !== undefined) {
-              val = Number(seedMatch.days[col.dayStr]) || 0;
+          } else if (tKey === "admin_ciftlik_com" || tKey === "default_admin") {
+            if (cust.seedDays && cust.seedDays[col.dayStr] !== undefined) {
+              val = Number(cust.seedDays[col.dayStr]) || 0;
+            } else {
+              const seedMatch = EXCEL_SEED_DATA.find(s => s.adSoyad.toLowerCase() === cust.adSoyad.toLowerCase());
+              if (seedMatch && seedMatch.days && seedMatch.days[col.dayStr] !== undefined) {
+                val = Number(seedMatch.days[col.dayStr]) || 0;
+              }
             }
           }
         }
@@ -1746,7 +1913,11 @@ function getMatrixData() {
 
       // Kesilecek para
       let deduction = Number(cust.kesilecekPara) || 0;
-      const localDeduct = localStorage.getItem(`matrix_deduct_${cust.kullaniciAdi}`);
+      const tKey = getCurrentTenantKey();
+      let localDeduct = localStorage.getItem(`matrix_deduct_${tKey}_${cust.kullaniciAdi}`);
+      if (localDeduct === null && (tKey === "admin_ciftlik_com" || tKey === "default_admin")) {
+        localDeduct = localStorage.getItem(`matrix_deduct_${cust.kullaniciAdi}`);
+      }
       if (localDeduct !== null) deduction = Number(localDeduct) || 0;
 
       const carpim = +(rowTotalMilk * unitPrice).toFixed(2);
@@ -1779,11 +1950,17 @@ function getMatrixData() {
     if (rec && rec.fabrikaSut !== undefined) {
       kantarVal = Number(rec.fabrikaSut) || 0;
     } else {
-      const localKantar = localStorage.getItem(`matrix_kantar_${col.fullDate}`);
+      const tKey = getCurrentTenantKey();
+      let localKantar = localStorage.getItem(`matrix_kantar_${tKey}_${col.fullDate}`);
+      if (localKantar === null && (tKey === "admin_ciftlik_com" || tKey === "default_admin")) {
+        localKantar = localStorage.getItem(`matrix_kantar_${col.fullDate}`);
+      }
       if (localKantar !== null) {
         kantarVal = Number(localKantar) || 0;
-      } else if (EXCEL_SEED_KANTAR[col.dayStr] !== undefined) {
-        kantarVal = Number(EXCEL_SEED_KANTAR[col.dayStr]) || 0;
+      } else if (tKey === "admin_ciftlik_com" || tKey === "default_admin") {
+        if (EXCEL_SEED_KANTAR[col.dayStr] !== undefined) {
+          kantarVal = Number(EXCEL_SEED_KANTAR[col.dayStr]) || 0;
+        }
       }
     }
     dayKantarTotals[col.fullDate] = kantarVal;
@@ -1853,124 +2030,140 @@ function renderMatrixTable() {
   const totalColSpan = data.columns.length + 5;
   let currentBolge = null;
 
-  data.rows.forEach(r => {
-    // Bölge Başlığı
-    if (r.bolge !== currentBolge) {
-      currentBolge = r.bolge;
-      html += `
-        <tr class="bg-slate-200 text-slate-900 font-black text-xs border border-slate-400">
-          <td colspan="${totalColSpan}" class="py-2 px-4 text-left uppercase tracking-wider bg-slate-200 border border-slate-400 font-black text-slate-900">
-            📍 ${escapeHtml(currentBolge)}
-          </td>
-        </tr>
-      `;
-    }
-
-    html += `<tr class="hover:bg-amber-50/50 transition-colors border-b border-slate-200">`;
-    // Üretici Adı
+  if (data.rows.length === 0) {
     html += `
-      <td class="sticky left-0 z-10 bg-white font-bold text-slate-900 border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap shadow-xs">
-        <span class="inline-block bg-amber-300 text-slate-900 px-1.5 py-0.5 rounded text-[11px] font-black mr-1.5">${escapeHtml(r.cust.adSoyad)}</span>
-      </td>
+      <tr>
+        <td colspan="${totalColSpan}" class="py-12 text-center text-slate-500 font-medium">
+          <div class="max-w-md mx-auto space-y-2">
+            <span class="text-3xl block">📋</span>
+            <p class="font-bold text-slate-700 text-sm">Bu yönetici hesabı için henüz kayıtlı üretici bulunmuyor.</p>
+            <p class="text-xs text-slate-500">Üreticilerinizi eklemek için <strong>Üretici Yönetimi</strong> sekmesini kullanabilir veya yukarıdaki <strong>"Örnek Excel Verilerini Yükle"</strong> butonuna basarak örnek listeyi çiftliğinize aktarabilirsiniz.</p>
+          </div>
+        </td>
+      </tr>
     `;
+  } else {
+    data.rows.forEach(r => {
+      // Bölge Başlığı
+      if (r.bolge !== currentBolge) {
+        currentBolge = r.bolge;
+        html += `
+          <tr class="bg-slate-200 text-slate-900 font-black text-xs border border-slate-400">
+            <td colspan="${totalColSpan}" class="py-2 px-4 text-left uppercase tracking-wider bg-slate-200 border border-slate-400 font-black text-slate-900">
+              📍 ${escapeHtml(currentBolge)}
+            </td>
+          </tr>
+        `;
+      }
 
-    // Günler
-    data.columns.forEach(col => {
-      const val = r.dayValues[col.fullDate] || 0;
+      html += `<tr class="hover:bg-amber-50/50 transition-colors border-b border-slate-200">`;
+      // Üretici Adı
+      html += `
+        <td class="sticky left-0 z-10 bg-white font-bold text-slate-900 border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap shadow-xs">
+          <span class="inline-block bg-amber-300 text-slate-900 px-1.5 py-0.5 rounded text-[11px] font-black mr-1.5">${escapeHtml(r.cust.adSoyad)}</span>
+        </td>
+      `;
+
+      // Günler
+      data.columns.forEach(col => {
+        const val = r.dayValues[col.fullDate] || 0;
+        html += `
+          <td 
+            class="matrix-cell border border-slate-300 p-1 text-center font-bold text-slate-800 cursor-pointer hover:bg-emerald-100 active:scale-95 transition"
+            data-type="milk"
+            data-cust-user="${r.cust.kullaniciAdi}"
+            data-cust-name="${escapeHtml(r.cust.adSoyad)}"
+            data-date="${col.fullDate}"
+            data-day="${col.dayStr}"
+            data-val="${val}"
+            title="${escapeHtml(r.cust.adSoyad)} - ${col.displayDate} (Tıkla ve düzenle)"
+          >
+            ${val > 0 ? val : ""}
+          </td>
+        `;
+      });
+
+      // Toplam
+      html += `<td class="bg-slate-200 font-black text-slate-900 border border-slate-300 py-1.5 px-2 text-center text-xs">${r.rowTotalMilk > 0 ? r.rowTotalMilk : "0"}</td>`;
+
+      // Kesilecek Para
       html += `
         <td 
-          class="matrix-cell border border-slate-300 p-1 text-center font-bold text-slate-800 cursor-pointer hover:bg-emerald-100 active:scale-95 transition"
-          data-type="milk"
+          class="matrix-cell border border-slate-300 py-1.5 px-2 text-right font-black text-rose-700 cursor-pointer hover:bg-rose-50 active:scale-95 transition text-xs"
+          data-type="deduction"
           data-cust-user="${r.cust.kullaniciAdi}"
           data-cust-name="${escapeHtml(r.cust.adSoyad)}"
+          data-val="${r.deduction}"
+          title="Kesilecek parayı (avans) değiştirmek için tıkla"
+        >
+          ${r.deduction > 0 ? r.deduction.toLocaleString("tr-TR", { minimumFractionDigits: 2 }) : ""}
+        </td>
+      `;
+
+      // Çarpım
+      html += `<td class="bg-slate-100 font-black text-slate-900 border border-slate-300 py-1.5 px-2 text-right text-xs">${r.carpim.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL</td>`;
+
+      // Ödenecek Para
+      const isNegative = r.payable < 0;
+      html += `<td class="border border-slate-300 py-1.5 px-2 text-right text-xs font-black ${isNegative ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-slate-900'}">${r.payable.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL</td>`;
+
+      html += `</tr>`;
+    });
+  }
+
+  // ========================================================================
+  // ALT TOPLAM SATIRLARI (TOPLAM SÜT & KANTAR) - Sadece veri varsa göster
+  // ========================================================================
+  if (data.rows.length > 0) {
+    // 1. TOPLAM SÜT (Kırmızı Zemin)
+    html += `
+      <tr class="bg-red-600 text-white font-black text-xs border border-red-700">
+        <td class="sticky left-0 z-10 bg-red-600 text-white px-3 py-2 text-left uppercase font-black border border-red-700 shadow-xs">
+          TOPLAM SÜT
+        </td>
+    `;
+    data.columns.forEach(col => {
+      const dayTot = data.dayColumnTotals[col.fullDate] || 0;
+      html += `<td class="border border-red-700 p-1 text-center font-black">${dayTot > 0 ? dayTot : "0"}</td>`;
+    });
+    html += `
+        <td class="bg-red-700 text-white font-black py-2 px-2 text-center border border-red-800">${data.grandTotalMilk.toLocaleString("tr-TR")} KG</td>
+        <td class="bg-red-700 text-white font-black py-2 px-2 text-right border border-red-800">${data.grandTotalDeductions > 0 ? data.grandTotalDeductions.toLocaleString("tr-TR", { minimumFractionDigits: 2 }) : "0.00"} TL</td>
+        <td class="bg-red-700 text-white font-black py-2 px-2 text-right border border-red-800">${data.grandTotalCarpim.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL</td>
+        <td class="bg-red-800 text-white font-black py-2 px-2 text-right border border-red-900">${data.grandTotalPayable.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL</td>
+      </tr>
+    `;
+
+    // 2. KANTAR (Sarı Zemin)
+    html += `
+      <tr class="bg-yellow-400 text-slate-900 font-black text-xs border border-yellow-500">
+        <td class="sticky left-0 z-10 bg-yellow-400 text-slate-900 px-3 py-2 text-left uppercase font-black border border-yellow-500 shadow-xs">
+          KANTAR
+        </td>
+    `;
+    data.columns.forEach(col => {
+      const kantarVal = data.dayKantarTotals[col.fullDate] || 0;
+      html += `
+        <td 
+          class="matrix-cell border border-yellow-500 p-1 text-center font-black cursor-pointer hover:bg-yellow-300 active:scale-95 transition"
+          data-type="kantar"
           data-date="${col.fullDate}"
           data-day="${col.dayStr}"
-          data-val="${val}"
-          title="${escapeHtml(r.cust.adSoyad)} - ${col.displayDate} (Tıkla ve düzenle)"
+          data-val="${kantarVal}"
+          title="Kantar değerini düzenlemek için tıkla"
         >
-          ${val > 0 ? val : ""}
+          ${kantarVal > 0 ? kantarVal : ""}
         </td>
       `;
     });
-
-    // Toplam
-    html += `<td class="bg-slate-200 font-black text-slate-900 border border-slate-300 py-1.5 px-2 text-center text-xs">${r.rowTotalMilk > 0 ? r.rowTotalMilk : "0"}</td>`;
-
-    // Kesilecek Para
     html += `
-      <td 
-        class="matrix-cell border border-slate-300 py-1.5 px-2 text-right font-black text-rose-700 cursor-pointer hover:bg-rose-50 active:scale-95 transition text-xs"
-        data-type="deduction"
-        data-cust-user="${r.cust.kullaniciAdi}"
-        data-cust-name="${escapeHtml(r.cust.adSoyad)}"
-        data-val="${r.deduction}"
-        title="Kesilecek parayı (avans) değiştirmek için tıkla"
-      >
-        ${r.deduction > 0 ? r.deduction.toLocaleString("tr-TR", { minimumFractionDigits: 2 }) : ""}
-      </td>
+        <td class="bg-yellow-500 text-slate-900 font-black py-2 px-2 text-center border border-yellow-600">${data.grandTotalKantar.toLocaleString("tr-TR")} KG</td>
+        <td colspan="3" class="bg-yellow-400 border border-yellow-500 text-right pr-3 font-extrabold text-[11px] text-slate-800">
+          Fabrika Geliri: ${data.factoryIncome.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺
+        </td>
+      </tr>
     `;
-
-    // Çarpım
-    html += `<td class="bg-slate-100 font-black text-slate-900 border border-slate-300 py-1.5 px-2 text-right text-xs">${r.carpim.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL</td>`;
-
-    // Ödenecek Para
-    const isNegative = r.payable < 0;
-    html += `<td class="border border-slate-300 py-1.5 px-2 text-right text-xs font-black ${isNegative ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-slate-900'}">${r.payable.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL</td>`;
-
-    html += `</tr>`;
-  });
-
-  // ========================================================================
-  // ALT TOPLAM SATIRLARI (TOPLAM SÜT & KANTAR)
-  // ========================================================================
-  // 1. TOPLAM SÜT (Kırmızı Zemin)
-  html += `
-    <tr class="bg-red-600 text-white font-black text-xs border border-red-700">
-      <td class="sticky left-0 z-10 bg-red-600 text-white px-3 py-2 text-left uppercase font-black border border-red-700 shadow-xs">
-        TOPLAM SÜT
-      </td>
-  `;
-  data.columns.forEach(col => {
-    const dayTot = data.dayColumnTotals[col.fullDate] || 0;
-    html += `<td class="border border-red-700 p-1 text-center font-black">${dayTot > 0 ? dayTot : "0"}</td>`;
-  });
-  html += `
-      <td class="bg-red-700 text-white font-black py-2 px-2 text-center border border-red-800">${data.grandTotalMilk.toLocaleString("tr-TR")} KG</td>
-      <td class="bg-red-700 text-white font-black py-2 px-2 text-right border border-red-800">${data.grandTotalDeductions > 0 ? data.grandTotalDeductions.toLocaleString("tr-TR", { minimumFractionDigits: 2 }) : "0.00"} TL</td>
-      <td class="bg-red-700 text-white font-black py-2 px-2 text-right border border-red-800">${data.grandTotalCarpim.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL</td>
-      <td class="bg-red-800 text-white font-black py-2 px-2 text-right border border-red-900">${data.grandTotalPayable.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL</td>
-    </tr>
-  `;
-
-  // 2. KANTAR (Sarı Zemin)
-  html += `
-    <tr class="bg-yellow-400 text-slate-900 font-black text-xs border border-yellow-500">
-      <td class="sticky left-0 z-10 bg-yellow-400 text-slate-900 px-3 py-2 text-left uppercase font-black border border-yellow-500 shadow-xs">
-        KANTAR
-      </td>
-  `;
-  data.columns.forEach(col => {
-    const kantarVal = data.dayKantarTotals[col.fullDate] || 0;
-    html += `
-      <td 
-        class="matrix-cell border border-yellow-500 p-1 text-center font-black cursor-pointer hover:bg-yellow-300 active:scale-95 transition"
-        data-type="kantar"
-        data-date="${col.fullDate}"
-        data-day="${col.dayStr}"
-        data-val="${kantarVal}"
-        title="Kantar değerini düzenlemek için tıkla"
-      >
-        ${kantarVal > 0 ? kantarVal : ""}
-      </td>
-    `;
-  });
-  html += `
-      <td class="bg-yellow-500 text-slate-900 font-black py-2 px-2 text-center border border-yellow-600">${data.grandTotalKantar.toLocaleString("tr-TR")} KG</td>
-      <td colspan="3" class="bg-yellow-400 border border-yellow-500 text-right pr-3 font-extrabold text-[11px] text-slate-800">
-        Fabrika Geliri: ${data.factoryIncome.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺
-      </td>
-    </tr>
-  `;
+  }
 
   html += `</tbody>`;
   matrixTable.innerHTML = html;
@@ -2024,10 +2217,11 @@ async function handleSaveCellModal(e) {
 
   const newVal = parseFloat(cellModalInput.value) || 0;
   const { type, cust, dateStr } = activeCellEdit;
+  const tKey = getCurrentTenantKey();
 
   try {
     if (type === "milk") {
-      localStorage.setItem(`matrix_milk_${cust.kullaniciAdi}_${dateStr}`, newVal);
+      localStorage.setItem(`matrix_milk_${tKey}_${cust.kullaniciAdi}_${dateStr}`, newVal);
 
       // Firestore'a da kaydet / güncelle
       const existingLog = allCustomerLogs.find(l => 
@@ -2037,13 +2231,13 @@ async function handleSaveCellModal(e) {
 
       const tutar = +(newVal * publicPrice).toFixed(2);
       if (existingLog) {
-        await setDoc(doc(db, COL_CUSTOMER_LOGS, existingLog.id), {
+        await setDoc(doc(db, getTenantColName(COL_CUSTOMER_LOGS), existingLog.id), {
           miktar: newVal,
           tutar: tutar,
           guncellendiAt: serverTimestamp()
         }, { merge: true });
       } else if (newVal > 0) {
-        await addDoc(collection(db, COL_CUSTOMER_LOGS), {
+        await addDoc(collection(db, getTenantColName(COL_CUSTOMER_LOGS)), {
           musteriKullaniciAdi: cust.kullaniciAdi,
           adSoyad: cust.adSoyad,
           tarih: dateStr,
@@ -2059,11 +2253,11 @@ async function handleSaveCellModal(e) {
       showToast(`${cust.adSoyad} için süt miktarı ${newVal} LT olarak kaydedildi!`, "success");
 
     } else if (type === "deduction") {
-      localStorage.setItem(`matrix_deduct_${cust.kullaniciAdi}`, newVal);
+      localStorage.setItem(`matrix_deduct_${tKey}_${cust.kullaniciAdi}`, newVal);
 
       const matchedCust = allCustomers.find(c => c.kullaniciAdi === cust.kullaniciAdi || c.adSoyad.toLowerCase() === cust.adSoyad.toLowerCase());
       if (matchedCust) {
-        await setDoc(doc(db, COL_USERS, matchedCust.id), {
+        await setDoc(doc(db, getTenantColName(COL_USERS), matchedCust.id), {
           kesilecekPara: newVal
         }, { merge: true });
       }
@@ -2071,11 +2265,11 @@ async function handleSaveCellModal(e) {
       showToast(`${cust.adSoyad} için kesilecek para ${newVal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺ olarak güncellendi!`, "success");
 
     } else if (type === "kantar") {
-      localStorage.setItem(`matrix_kantar_${dateStr}`, newVal);
+      localStorage.setItem(`matrix_kantar_${tKey}_${dateStr}`, newVal);
 
       const existingRecord = allRecords.find(r => r.tarih === dateStr);
       if (existingRecord) {
-        await setDoc(doc(db, COL_RECORDS, existingRecord.id), {
+        await setDoc(doc(db, getTenantColName(COL_RECORDS), existingRecord.id), {
           fabrikaSut: newVal,
           fabrikaGelir: +(newVal * (existingRecord.fabrikaFiyat || factoryPrice)).toFixed(2)
         }, { merge: true });
@@ -2267,20 +2461,21 @@ function handleMatrixExportEmail() {
 
 // Excel Fotoğrafındaki Tüm Üreticileri Otomatik Yükleme Sihirbazı
 async function handleMatrixSeedData() {
-  if (!confirm("Excel tablosundaki tüm üreticileri (Velimeşe, Kapaklı, Eflaim, Sütçüler) ve örnek süt kayıtlarını sisteme aktarmak istiyor musunuz?")) {
+  if (!confirm("Excel tablosundaki tüm üreticileri (Velimeşe, Kapaklı, Eflaim, Sütçüler) ve örnek süt kayıtlarını bu çiftlik hesabına aktarmak istiyor musunuz?")) {
     return;
   }
 
-  showToast("Excel üreticileri ve verileri yükleniyor...", "info");
+  showToast("Excel üreticileri ve verileri çiftliğinize yükleniyor...", "info");
 
   try {
+    const tKey = getCurrentTenantKey();
     for (const item of EXCEL_SEED_DATA) {
       const username = item.adSoyad.toLowerCase().replace(/[^a-z0-9]/g, "_");
       const existing = allCustomers.find(c => c.kullaniciAdi === username || c.adSoyad.toLowerCase() === item.adSoyad.toLowerCase());
 
       let custId = existing ? existing.id : null;
       if (!existing) {
-        const docRef = await addDoc(collection(db, COL_USERS), {
+        const custData = {
           adSoyad: item.adSoyad,
           kullaniciAdi: username,
           email: `${username}@ciftlik.com`,
@@ -2289,11 +2484,15 @@ async function handleMatrixSeedData() {
           bolge: item.bolge,
           kesilecekPara: item.kesilecekPara || 0,
           rol: "musteri",
+          tenantKey: tKey,
+          adminEmail: (currentUser && currentUser.email) || "",
           olusturulduAt: serverTimestamp()
-        });
+        };
+        const docRef = await addDoc(collection(db, getTenantColName(COL_USERS)), custData);
         custId = docRef.id;
+        await setDoc(doc(db, "musteriler_global", username), custData, { merge: true });
       } else {
-        await setDoc(doc(db, COL_USERS, existing.id), {
+        await setDoc(doc(db, getTenantColName(COL_USERS), existing.id), {
           bolge: item.bolge,
           kesilecekPara: item.kesilecekPara || 0
         }, { merge: true });
@@ -2303,12 +2502,12 @@ async function handleMatrixSeedData() {
       if (item.days) {
         for (const [dayNum, amount] of Object.entries(item.days)) {
           const dateStr = `2026-10-${dayNum.padStart(2, "0")}`;
-          localStorage.setItem(`matrix_milk_${username}_${dateStr}`, amount);
+          localStorage.setItem(`matrix_milk_${tKey}_${username}_${dateStr}`, amount);
 
           // log olarak ekle
           const existingLog = allCustomerLogs.find(l => l.tarih === dateStr && l.musteriKullaniciAdi === username);
           if (!existingLog && amount > 0) {
-            await addDoc(collection(db, COL_CUSTOMER_LOGS), {
+            await addDoc(collection(db, getTenantColName(COL_CUSTOMER_LOGS)), {
               musteriKullaniciAdi: username,
               adSoyad: item.adSoyad,
               tarih: dateStr,
@@ -2326,10 +2525,10 @@ async function handleMatrixSeedData() {
     // Kantar değerlerini kaydet
     for (const [dayNum, kantarVal] of Object.entries(EXCEL_SEED_KANTAR)) {
       const dateStr = `2026-10-${dayNum.padStart(2, "0")}`;
-      localStorage.setItem(`matrix_kantar_${dateStr}`, kantarVal);
+      localStorage.setItem(`matrix_kantar_${tKey}_${dateStr}`, kantarVal);
     }
 
-    showToast("Excel üreticileri ve çizelge verileri başarıyla sisteme aktarıldı!", "success");
+    showToast("Excel üreticileri ve çizelge verileri çiftliğinize aktarıldı!", "success");
     renderMatrixTable();
   } catch (err) {
     showToast("Veri aktarımı sırasında hata: " + err.message, "error");
@@ -2342,14 +2541,15 @@ async function handleMatrixSeedData() {
 // ============================================================================
 let myCustomerLogs = [];
 
-function listenToMyCustomerLogs(username) {
+function listenToMyCustomerLogs(username, tenantKey) {
   try {
+    const colName = getTenantColName(COL_CUSTOMER_LOGS, tenantKey);
     const q = query(
-      collection(db, COL_CUSTOMER_LOGS),
+      collection(db, colName),
       where("musteriKullaniciAdi", "==", username)
     );
 
-    onSnapshot(q, (snapshot) => {
+    unsubMyLogs = onSnapshot(q, (snapshot) => {
       myCustomerLogs = [];
       snapshot.forEach(docSnap => {
         myCustomerLogs.push({ id: docSnap.id, ...docSnap.data() });
@@ -2415,8 +2615,9 @@ function renderCustomerPortalTable() {
 
 function listenToAllCustomerLogs() {
   try {
-    const q = query(collection(db, COL_CUSTOMER_LOGS), orderBy("tarih", "desc"));
-    onSnapshot(q, (snapshot) => {
+    const colName = getTenantColName(COL_CUSTOMER_LOGS);
+    const q = query(collection(db, colName), orderBy("tarih", "desc"));
+    unsubCustomerLogs = onSnapshot(q, (snapshot) => {
       allCustomerLogs = [];
       snapshot.forEach(docSnap => {
         allCustomerLogs.push({ id: docSnap.id, ...docSnap.data() });
@@ -2858,7 +3059,7 @@ async function executeDelete() {
   confirmDeleteBtn.textContent = "Siliniyor...";
 
   try {
-    await deleteDoc(doc(db, COL_RECORDS, recordToDeleteId));
+    await deleteDoc(doc(db, getTenantColName(COL_RECORDS), recordToDeleteId));
     showToast("Kayıt başarıyla silindi.", "info");
     closeDeleteModal();
   } catch (err) {
