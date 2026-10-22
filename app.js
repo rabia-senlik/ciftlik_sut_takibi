@@ -211,6 +211,7 @@ const emailReportForm = document.getElementById("email-report-form");
 const reportEmailInput = document.getElementById("report-email-input");
 const closeEmailModalBtn = document.getElementById("close-email-modal-btn");
 const printReportBtn = document.getElementById("print-report-btn");
+const copyReportTextBtn = document.getElementById("copy-report-text-btn");
 const previewReportTitle = document.getElementById("preview-report-title");
 const previewReportDate = document.getElementById("preview-report-date");
 const previewTotalMilk = document.getElementById("preview-total-milk");
@@ -362,7 +363,8 @@ function setupEventListeners() {
   if (emailReportBtn) emailReportBtn.addEventListener("click", openEmailModal);
   if (closeEmailModalBtn) closeEmailModalBtn.addEventListener("click", closeEmailModal);
   if (emailReportForm) emailReportForm.addEventListener("submit", handleSendEmailReport);
-  if (printReportBtn) printReportBtn.addEventListener("click", () => window.print());
+  if (printReportBtn) printReportBtn.addEventListener("click", handleDownloadModalPdf);
+  if (copyReportTextBtn) copyReportTextBtn.addEventListener("click", handleCopyReportText);
 
   // Rapor sıklığı değiştikçe önizlemeyi güncelle
   document.querySelectorAll('input[name="reportFrequency"]').forEach(radio => {
@@ -635,9 +637,7 @@ async function handleLogin(e) {
       rol: "admin"
     };
 
-    // Girişte e-posta gönderimi kapalı: Doğrudan oturum açılır
-    showToast(`Hoş geldiniz ${adminUser.adSoyad}! Yönetici girişi başarılı.`, "success");
-
+    // Girişte bildirim gönderimi kapalı: Sessizce ve doğrudan oturum açılır
     setSession(adminUser, rememberMe);
     return;
   }
@@ -2087,7 +2087,28 @@ function handleMatrixExportPdf() {
   `;
 
   excelMatrixPrintArea.innerHTML = printHtml;
-  window.print();
+  excelMatrixPrintArea.classList.remove("hidden");
+
+  if (window.html2pdf) {
+    showToast("PDF dosyası oluşturuluyor ve indiriliyor...", "info", 3000);
+    const opt = {
+      margin: [5, 5, 5, 5],
+      filename: `Senlik_Ciftligi_Sut_Cizelgesi_${monthName}_${yyyy}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+    };
+    html2pdf().set(opt).from(excelMatrixPrintArea).save().then(() => {
+      excelMatrixPrintArea.classList.add("hidden");
+      showToast("PDF çizelgesi başarıyla indirildi!", "success");
+    }).catch(err => {
+      console.warn("html2pdf hatası:", err);
+      excelMatrixPrintArea.classList.add("hidden");
+      window.print();
+    });
+  } else {
+    window.print();
+  }
 }
 
 // Excel (.csv) İndirme Fonksiyonu (UTF-8 BOM ile Excel'de Sorunsuz Açılır)
@@ -2499,20 +2520,10 @@ function updateReportPreview() {
   return { freq, isMonthly, totals, netProfit, totalPaid, totalDebt, producerList, filtered };
 }
 
-function handleSendEmailReport(e) {
-  e.preventDefault();
-  const targetEmail = reportEmailInput.value.trim();
-  if (!targetEmail) {
-    showToast("Lütfen raporun gönderileceği e-posta adresini yazın.", "warning");
-    return;
-  }
-
+function getFormattedReportText() {
   const reportData = updateReportPreview();
-
   if (reportData.freq === "matrix") {
     const { data } = reportData;
-    const subject = encodeURIComponent(`Çiftlik Süt Toplama & Hakediş Çizelgesi Tablosu (${new Date().toLocaleDateString("tr-TR")})`);
-
     let tableText = "BÖLGE | ÜRETİCİ | TOPLAM SÜT | KESİLECEK PARA | ÇARPIM | ÖDENECEK PARA\n";
     tableText += "--------------------------------------------------------------------------------\n";
     data.rows.forEach(r => {
@@ -2522,8 +2533,8 @@ function handleSendEmailReport(e) {
     tableText += `TOPLAM SÜT: ${data.grandTotalMilk} KG | KESİLECEK: ${data.grandTotalDeductions.toFixed(2)} TL | BRÜT: ${data.grandTotalCarpim.toFixed(2)} TL | ÖDENECEK: ${data.grandTotalPayable.toFixed(2)} TL\n`;
     tableText += `KANTAR SÜTÜ: ${data.grandTotalKantar} KG | FABRİKA SATIŞ GELİRİ: ${data.factoryIncome.toFixed(2)} TL\n`;
 
-    const bodyText = encodeURIComponent(
-`Sayın Çiftlik Yöneticisi,
+    const subject = `Şenlik Çiftliği Süt Toplama & Hakediş Çizelgesi Tablosu (${new Date().toLocaleDateString("tr-TR")})`;
+    const body = `Sayın Çiftlik Yöneticisi,
 
 ==================================================
 ÇİFTLİK SÜT TOPLAMA & HAKEDİŞ ÇİZELGESİ (EXCEL RAPORU)
@@ -2545,18 +2556,14 @@ Süt Alış Birim Fiyatı: ${data.unitPrice.toFixed(2)} TL / LT
 --------------------------------------------------
 ${tableText}
 
-Bu rapor Çiftlik Süt Yönetim Portalı tarafından otomatik oluşturulmuştur.`
-    );
+Bu rapor Şenlik Çiftliği Süt Takip Sistemi tarafından otomatik oluşturulmuştur.`;
 
-    window.open(`mailto:${targetEmail}?subject=${subject}&body=${bodyText}`, "_blank");
-    closeEmailModal();
-    showToast("Excel Çizelgesi e-posta taslağı hazırlandı!", "success");
-    return;
+    return { subject, body };
   }
 
   const { isMonthly, totals, netProfit, totalPaid, totalDebt, producerList } = reportData;
   const periodText = isMonthly ? "Aylık" : "Günlük";
-  const subject = encodeURIComponent(`Çiftlik Süt ve Finans ${periodText} Raporu (${new Date().toLocaleDateString("tr-TR")})`);
+  const subject = `Şenlik Çiftliği Süt ve Finans ${periodText} Raporu (${new Date().toLocaleDateString("tr-TR")})`;
 
   let producerText = "Bu dönem için üretici teslimatı bulunmuyor.";
   if (producerList && producerList.length > 0) {
@@ -2566,11 +2573,10 @@ Bu rapor Çiftlik Süt Yönetim Portalı tarafından otomatik oluşturulmuştur.
     }).join("\n");
   }
 
-  const bodyText = encodeURIComponent(
-`Sayın Çiftlik Yöneticisi,
+  const body = `Sayın Çiftlik Yöneticisi,
 
 ==================================================
-ÇİFTLİK SÜT & FİNANS ${periodText.toUpperCase()} RAPORU
+ŞENLİK ÇİFTLİĞİ SÜT & FİNANS ${periodText.toUpperCase()} RAPORU
 Tarih: ${new Date().toLocaleDateString("tr-TR")}
 ==================================================
 
@@ -2598,12 +2604,176 @@ ${producerText}
 - Toplam Alacak / Tahsilat: ${totals.factoryMoney.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL
 ==================================================
 
-Bu rapor Çiftlik Süt Yönetim Portalı tarafından otomatik olarak oluşturulmuştur.`
-  );
+Bu rapor Şenlik Çiftliği Süt Takip Sistemi tarafından otomatik olarak oluşturulmuştur.`;
 
-  window.open(`mailto:${targetEmail}?subject=${subject}&body=${bodyText}`, "_blank");
+  return { subject, body };
+}
+
+function handleCopyReportText() {
+  const { body } = getFormattedReportText();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(body).then(() => {
+      showToast("Rapor metni panoya kopyalandı! İstediğiniz e-posta veya WhatsApp mesajına yapıştırabilirsiniz.", "success");
+    }).catch(() => {
+      showToast("Metin panoya kopyalanamadı.", "warning");
+    });
+  } else {
+    showToast("Panoya kopyalama bu tarayıcıda desteklenmiyor.", "warning");
+  }
+}
+
+function handleDownloadModalPdf() {
+  const reportData = updateReportPreview();
+  if (reportData.freq === "matrix") {
+    handleMatrixExportPdf();
+    return;
+  }
+
+  const { isMonthly, totals, netProfit, totalPaid, totalDebt, producerList } = reportData;
+  const periodText = isMonthly ? "Aylik" : "Gunluk";
+  const periodTitle = isMonthly ? "Aylık Çiftlik Raporu" : "Günlük Çiftlik Raporu";
+  const dateStr = new Date().toLocaleDateString("tr-TR");
+
+  let producerRowsHtml = "";
+  if (producerList && producerList.length > 0) {
+    producerRowsHtml = producerList.map((p, idx) => `
+      <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+        <td style="padding: 6px 8px; text-align: center; color: #64748b;">${idx + 1}</td>
+        <td style="padding: 6px 8px; font-weight: bold; color: #0f172a;">${escapeHtml(p.adSoyad)}</td>
+        <td style="padding: 6px 8px; text-align: right; font-weight: bold; color: #047857;">${p.miktar.toLocaleString("tr-TR")} LT</td>
+        <td style="padding: 6px 8px; text-align: right; color: #0f172a;">${p.tutar.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</td>
+        <td style="padding: 6px 8px; text-align: center;">
+          <span style="display: inline-block; padding: 2px 8px; border-radius: 6px; font-weight: bold; font-size: 10px; ${p.borcTutar === 0 ? 'background: #dcfce7; color: #166534;' : 'background: #ffe4e6; color: #9f1239;'}">
+            ${p.borcTutar === 0 ? '✓ Ödendi' : `Borç: ${p.borcTutar.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`}
+          </span>
+        </td>
+      </tr>
+    `).join("");
+  } else {
+    producerRowsHtml = `
+      <tr>
+        <td colspan="5" style="padding: 12px; text-align: center; color: #94a3b8; font-style: italic;">
+          Bu dönem için kayıtlı üretici teslimatı bulunmamaktadır.
+        </td>
+      </tr>
+    `;
+  }
+
+  const reportContainer = document.createElement("div");
+  reportContainer.style.padding = "20px";
+  reportContainer.style.background = "#ffffff";
+  reportContainer.style.color = "#0f172a";
+  reportContainer.style.fontFamily = "'Plus Jakarta Sans', Arial, sans-serif";
+
+  reportContainer.innerHTML = `
+    <div style="border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: flex-end;">
+      <div>
+        <h1 style="font-size: 20px; font-weight: 900; margin: 0; color: #166534;">ŞENLİK BESİ VE ÜRETİM ÇİFTLİĞİ</h1>
+        <h2 style="font-size: 13px; font-weight: 700; margin: 3px 0 0 0; color: #334155;">${periodTitle} &bull; Süt Toplama & Finans Özeti</h2>
+      </div>
+      <div style="text-align: right; font-size: 11px; color: #64748b;">
+        <div>Tarih: <strong>${dateStr}</strong></div>
+        <div>Yanıkağıl / Kapaklı - Tekirdağ</div>
+      </div>
+    </div>
+
+    <!-- 4 Finansal Özet Kutusu -->
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px;">
+      <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 10px; font-weight: bold; color: #64748b; text-transform: uppercase;">Toplanan Süt</div>
+        <div style="font-size: 16px; font-weight: 900; color: #0f172a; margin-top: 4px;">${totals.milk.toLocaleString("tr-TR")} LT</div>
+      </div>
+      <div style="background: #f0fdf4; border: 1px solid #86efac; padding: 10px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 10px; font-weight: bold; color: #166534; text-transform: uppercase;">Fabrika Satış Geliri</div>
+        <div style="font-size: 16px; font-weight: 900; color: #15803d; margin-top: 4px;">${totals.factoryMoney.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</div>
+      </div>
+      <div style="background: #fffbeb; border: 1px solid #fde68a; padding: 10px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 10px; font-weight: bold; color: #b45309; text-transform: uppercase;">Halka Ödenecek</div>
+        <div style="font-size: 16px; font-weight: 900; color: #b45309; margin-top: 4px;">${totals.publicMoney.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</div>
+      </div>
+      <div style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 10px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 10px; font-weight: bold; color: #1d4ed8; text-transform: uppercase;">Net Çiftlik Kârı</div>
+        <div style="font-size: 16px; font-weight: 900; color: #1e40af; margin-top: 4px;">${netProfit.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</div>
+      </div>
+    </div>
+
+    <!-- Halka Ödenen ve Borç Çubuğu -->
+    <div style="display: flex; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 12px; border-radius: 8px; font-size: 11px; margin-bottom: 15px;">
+      <div><span style="color: #64748b;">Halka Ödenen Tutar:</span> <strong style="color: #15803d; font-size: 12px;">${totalPaid.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</strong></div>
+      <div><span style="color: #64748b;">Halka Kalan Borç:</span> <strong style="color: #b91c1c; font-size: 12px;">${totalDebt.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</strong></div>
+    </div>
+
+    <!-- Üretici Teslimat Tablosu -->
+    <h3 style="font-size: 12px; font-weight: 800; text-transform: uppercase; margin: 0 0 8px 0; color: #334155;">
+      Üretici / Müşteri Teslimat ve Ödeme Listesi
+    </h3>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
+      <thead>
+        <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1; font-size: 10px; color: #475569; text-transform: uppercase;">
+          <th style="padding: 6px 8px; text-align: center; width: 35px;">No</th>
+          <th style="padding: 6px 8px; text-align: left;">Üretici Ad Soyad</th>
+          <th style="padding: 6px 8px; text-align: right;">Teslim Edilen (LT)</th>
+          <th style="padding: 6px 8px; text-align: right;">Hakediş Tutarı (TL)</th>
+          <th style="padding: 6px 8px; text-align: center; width: 110px;">Ödeme Durumu</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${producerRowsHtml}
+      </tbody>
+    </table>
+
+    <div style="border-top: 1px dashed #cbd5e1; padding-top: 10px; font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between;">
+      <div>Şenlik Çiftliği Süt Takibi &bull; Otomatik Sistem Raporu</div>
+      <div>Rapor Oluşturma Saati: ${new Date().toLocaleTimeString("tr-TR")}</div>
+    </div>
+  `;
+
+  if (window.html2pdf) {
+    showToast("PDF raporu oluşturuluyor ve indiriliyor...", "info", 3000);
+    const opt = {
+      margin: [6, 6, 6, 6],
+      filename: `Senlik_Ciftligi_Rapor_${periodText}_${new Date().toISOString().slice(0, 10)}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    html2pdf().set(opt).from(reportContainer).save().then(() => {
+      showToast("PDF raporu başarıyla indirildi!", "success");
+    }).catch(err => {
+      console.warn("PDF indirme hatası:", err);
+      window.print();
+    });
+  } else {
+    window.print();
+  }
+}
+
+function handleSendEmailReport(e) {
+  e.preventDefault();
+  const targetEmail = reportEmailInput.value.trim();
+  if (!targetEmail) {
+    showToast("Lütfen raporun gönderileceği e-posta adresini yazın.", "warning");
+    return;
+  }
+
+  const { subject, body } = getFormattedReportText();
+
+  // Otomatik panoya kopyala (kullanıcı kolayca her yere yapıştırabilsin)
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(body).catch(() => {});
+  }
+
+  // Gmail Web Taslağını Doğrudan Yeni Sekmede Aç (İstemci gerekmez)
+  const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(targetEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const mailtoUrl = `mailto:${targetEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+  const win = window.open(gmailUrl, "_blank");
+  if (!win || win.closed || typeof win.closed === "undefined") {
+    window.location.href = mailtoUrl;
+  }
+
   closeEmailModal();
-  showToast("Detaylı rapor e-posta taslağı hazırlandı!", "success");
+  showToast("Rapor panoya kopyalandı ve Gmail / E-posta taslağı açıldı!", "success", 5000);
 }
 
 // ============================================================================
