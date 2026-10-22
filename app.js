@@ -58,9 +58,11 @@ let recordToDeleteId = null;
 // 3. DOM ELEMENTLERİ
 // ============================================================================
 // Görünümler
+const landingView = document.getElementById("landing-view");
 const loginView = document.getElementById("login-view");
 const adminView = document.getElementById("admin-view");
 const customerView = document.getElementById("customer-view");
+const mainHeader = document.getElementById("main-header");
 
 // Giriş Sekmeleri & Formu
 const loginTabAdmin = document.getElementById("login-tab-admin");
@@ -78,6 +80,8 @@ const loginInfoAlert = document.getElementById("login-info-alert");
 const loginInfoTitle = document.getElementById("login-info-title");
 const loginInfoDesc = document.getElementById("login-info-desc");
 const togglePasswordBtn = document.getElementById("toggle-password-btn");
+const closeLoginModalBtn = document.getElementById("close-login-modal-btn");
+const loginRememberMe = document.getElementById("login-remember-me");
 
 // Navbar
 const headerSubtitle = document.getElementById("header-subtitle");
@@ -289,6 +293,7 @@ function setupEventListeners() {
   if (loginUsernameInput) loginUsernameInput.addEventListener("input", clearLoginAlerts);
   if (loginPasswordInput) loginPasswordInput.addEventListener("input", clearLoginAlerts);
   if (togglePasswordBtn) togglePasswordBtn.addEventListener("click", togglePasswordVisibility);
+  if (closeLoginModalBtn) closeLoginModalBtn.addEventListener("click", closeLoginModal);
 
   // Çıkış
   logoutBtn.addEventListener("click", handleLogout);
@@ -484,6 +489,32 @@ function switchLoginTab(mode) {
 }
 window.switchLoginTab = switchLoginTab;
 
+function openLoginModal(mode = "admin") {
+  if (loginView) loginView.classList.remove("hidden");
+  switchLoginTab(mode);
+
+  // Önceki kayıtlı kullanıcı adı varsa doldur
+  const savedVal = localStorage.getItem("ciftlik_saved_login_" + mode);
+  if (savedVal && loginUsernameInput) {
+    loginUsernameInput.value = savedVal;
+  }
+}
+window.openLoginModal = openLoginModal;
+
+function closeLoginModal() {
+  if (loginView) loginView.classList.add("hidden");
+  clearLoginAlerts();
+}
+window.closeLoginModal = closeLoginModal;
+
+function showLandingView() {
+  if (landingView) landingView.classList.remove("hidden");
+  if (loginView) loginView.classList.add("hidden");
+  if (adminView) adminView.classList.add("hidden");
+  if (customerView) customerView.classList.add("hidden");
+  if (mainHeader) mainHeader.classList.add("hidden");
+}
+window.showLandingView = showLandingView;
 
 async function handleLogin(e) {
   e.preventDefault();
@@ -491,6 +522,7 @@ async function handleLogin(e) {
 
   const inputVal = loginUsernameInput.value.trim().toLowerCase();
   const password = loginPasswordInput.value.trim();
+  const rememberMe = loginRememberMe ? loginRememberMe.checked : true;
 
   // 1. Alan Boş Kontrolleri
   if (!inputVal && !password) {
@@ -556,7 +588,7 @@ async function handleLogin(e) {
     // Giriş bilgilerini ve bildirimini admin e-posta adresine otomatik ilet
     sendAdminLoginEmail(adminUser.email, password);
 
-    setSession(adminUser);
+    setSession(adminUser, rememberMe);
     showToast(`Yönetici girişi başarılı! Oturum bildirimi e-postanıza gönderildi.`, "success");
     return;
   }
@@ -595,54 +627,64 @@ async function handleLogin(e) {
     email: usernameMatch.email || "",
     telefon: usernameMatch.telefon || ""
   };
-  setSession(customerUser);
+  setSession(customerUser, rememberMe);
   showToast(`Hoş geldiniz, ${customerUser.adSoyad}!`, "success");
 }
 
 
-function setSession(user) {
+function setSession(user, rememberMe = true) {
   currentUser = user;
-  localStorage.setItem("ciftlik_aktif_kullanici", JSON.stringify(user));
+  if (rememberMe) {
+    localStorage.setItem("ciftlik_aktif_kullanici", JSON.stringify(user));
+    localStorage.setItem("ciftlik_remember_me", "true");
+    localStorage.setItem("ciftlik_saved_login_" + user.rol, user.kullaniciAdi || user.email);
+  } else {
+    sessionStorage.setItem("ciftlik_aktif_kullanici", JSON.stringify(user));
+    localStorage.removeItem("ciftlik_aktif_kullanici");
+    localStorage.removeItem("ciftlik_remember_me");
+  }
   applyUserView();
 }
 
 function checkPersistedSession() {
   try {
-    const raw = localStorage.getItem("ciftlik_aktif_kullanici");
+    const rawLocal = localStorage.getItem("ciftlik_aktif_kullanici");
+    const isRemembered = localStorage.getItem("ciftlik_remember_me") === "true";
+    const rawSession = sessionStorage.getItem("ciftlik_aktif_kullanici");
+
+    const raw = rawSession || (isRemembered ? rawLocal : null);
     if (raw) {
       currentUser = JSON.parse(raw);
       applyUserView();
     } else {
-      showLoginView();
+      showLandingView();
     }
   } catch (e) {
-    showLoginView();
+    showLandingView();
   }
 }
 
 function handleLogout() {
   currentUser = null;
   localStorage.removeItem("ciftlik_aktif_kullanici");
-  showLoginView();
-  showToast("Oturum kapatıldı.", "info");
-}
-
-function showLoginView() {
-  loginView.classList.remove("hidden");
-  adminView.classList.add("hidden");
-  customerView.classList.add("hidden");
-  switchLoginTab("admin");
+  sessionStorage.removeItem("ciftlik_aktif_kullanici");
+  showLandingView();
+  showToast("Başarıyla çıkış yapıldı.", "info");
 }
 
 function applyUserView() {
   if (!currentUser) {
-    showLoginView();
+    showLandingView();
     return;
   }
 
-  loginView.classList.add("hidden");
+  if (landingView) landingView.classList.add("hidden");
+  if (loginView) loginView.classList.add("hidden");
+  if (mainHeader) mainHeader.classList.remove("hidden");
+
   userDisplayName.textContent = currentUser.adSoyad;
   userAvatar.textContent = currentUser.adSoyad.charAt(0).toUpperCase();
+
 
   if (currentUser.rol === "admin") {
     // YÖNETİCİ PANELİ

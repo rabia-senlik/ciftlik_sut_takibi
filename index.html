@@ -62,11 +62,25 @@
   <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-auto"></div>
 
   <!-- ========================================================================= -->
-  <!-- 1. GİRİŞ EKRANI (SEKMELİ: ADMIN E-POSTA & MÜŞTERİ AYRI GİRİŞİ) -->
   <!-- ========================================================================= -->
-  <div id="login-view" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
+  <!-- 1. GİRİŞ MODALI (SEKMELİ: ADMIN E-POSTA & MÜŞTERİ AYRI GİRİŞİ) -->
+  <!-- ========================================================================= -->
+  <div id="login-view" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 transition-all duration-300">
     <div class="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-100 relative overflow-hidden">
       
+      <!-- Kapat Butonu -->
+      <button 
+        type="button" 
+        id="close-login-modal-btn" 
+        onclick="window.closeLoginModal && window.closeLoginModal()"
+        class="absolute top-5 right-5 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full p-1.5 transition cursor-pointer" 
+        title="Kapat"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+
       <!-- Dekoratif Gradyan Çizgisi -->
       <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-600"></div>
 
@@ -172,10 +186,18 @@
           </div>
         </div>
 
+        <!-- Beni Hatırla Seçeneği -->
+        <div class="flex items-center justify-between text-xs pt-0.5">
+          <label class="flex items-center gap-2 cursor-pointer select-none text-slate-600 hover:text-slate-900 font-semibold">
+            <input type="checkbox" id="login-remember-me" checked class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 transition">
+            <span>Beni Hatırla (Her seferinde şifre sorma)</span>
+          </label>
+        </div>
+
         <button 
           type="submit" 
           id="login-submit-btn" 
-          class="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2 text-sm mt-3"
+          class="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2 text-sm mt-3 cursor-pointer"
         >
           <span id="login-btn-text">Yönetici Olarak Giriş Yap</span>
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -188,9 +210,184 @@
   </div>
 
   <!-- ========================================================================= -->
-  <!-- 2. ÜST NAVBAR -->
+  <!-- AÇILIŞ & TANITIM SAYFASI (LANDING PAGE - İNEK & ÇİFTLİK GÖRSELLİ) -->
   <!-- ========================================================================= -->
-  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs backdrop-blur-md bg-white/95">
+  <div id="landing-view" class="min-h-screen bg-slate-50 flex flex-col">
+    
+    <!-- Landing Üst Gezinme Çubuğu -->
+    <header class="bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+        
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-green-400 flex items-center justify-center text-white shadow-md shadow-emerald-200">
+            <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M18.5 3H5.5C4.12 3 3 4.12 3 5.5v13C3 19.88 4.12 21 5.5 21h13c1.38 0 2.5-1.12 2.5-2.5v-13C21 4.12 19.88 3 18.5 3zm-6.5 2c1.93 0 3.5 1.57 3.5 3.5S13.93 12 12 12s-3.5-1.57-3.5-3.5S10.07 5 12 5zm6 13h-12v-1.5c0-2 4-3.1 6-3.1s6 1.1 6 3.1V18z"/>
+            </svg>
+          </div>
+          <div>
+            <span class="text-[11px] font-extrabold uppercase tracking-widest text-emerald-700 block">Doğal & Şeffaf Üretim</span>
+            <span class="text-lg sm:text-xl font-extrabold text-slate-900 leading-none">Çiftlik Süt Yönetim Portalı</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2.5 sm:gap-3">
+          <button 
+            type="button" 
+            onclick="window.openLoginModal && window.openLoginModal('customer')"
+            class="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition shadow-xs cursor-pointer"
+          >
+            <span>👤 Müşteri Portalı</span>
+          </button>
+          <button 
+            type="button" 
+            onclick="window.openLoginModal && window.openLoginModal('admin')"
+            class="inline-flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white transition shadow-md shadow-emerald-600/30 cursor-pointer"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+            </svg>
+            <span>👑 Yönetici Girişi</span>
+          </button>
+        </div>
+
+      </div>
+    </header>
+
+    <!-- Hero Bölümü -->
+    <main class="flex-1">
+      <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-12 pb-12">
+        
+        <div class="text-center max-w-3xl mx-auto mb-8 sm:mb-10">
+          <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-extrabold mb-3 border border-emerald-200">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>Çiftlik Süt Toplama, Fabrika Satışı & Hesap Takip Portalı</span>
+          </div>
+          <h1 class="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-tight mb-4">
+            Doğadan Sofralara Güvenle, <br class="hidden sm:inline" />
+            <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-teal-600 to-green-500">
+              Şeffaf ve Modern Süt Takip Sistemi
+            </span>
+          </h1>
+          <p class="text-slate-600 text-sm sm:text-base leading-relaxed">
+            Üreticilerimizden toplanan günlük süt miktarları, köylü hakedişleri ve fabrikaya satışlar tek ekranda eksiksiz kayıt altında. Üreticiler sadece kendi sütünü ve alacağını şeffafça görür, yönetim tüm çiftlik finansını kolayca kontrol eder.
+          </p>
+
+          <div class="flex flex-wrap items-center justify-center gap-3.5 mt-6">
+            <button 
+              type="button" 
+              onclick="window.openLoginModal && window.openLoginModal('admin')"
+              class="px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm shadow-xl shadow-emerald-600/30 transition flex items-center gap-2 cursor-pointer"
+            >
+              <span>👑 Yönetici (Admin) Girişi</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+            </button>
+            <button 
+              type="button" 
+              onclick="window.openLoginModal && window.openLoginModal('customer')"
+              class="px-6 py-3.5 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 font-extrabold text-sm border-2 border-slate-200 hover:border-slate-300 shadow-sm transition flex items-center gap-2 cursor-pointer"
+            >
+              <span>👤 Müşteri / Üretici Portalı</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Çiftlik Görseli (Hero Banner - İnekler & Doğa) -->
+        <div class="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white mb-14 bg-slate-900">
+          <img 
+            src="img/farm_hero.jpg" 
+            alt="Modern Çiftlik Süt Üretimi ve İnekler" 
+            class="w-full h-[320px] sm:h-[460px] lg:h-[520px] object-cover object-center transform hover:scale-[1.01] transition duration-700"
+          >
+          <div class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-900/25 to-transparent pointer-events-none"></div>
+
+          <!-- Görsel Üzerindeki Canlı Rozetler -->
+          <div class="absolute top-4 left-4 sm:top-6 sm:left-6 flex flex-wrap gap-2">
+            <div class="bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-2xl shadow-lg border border-white/50 text-slate-900 text-xs font-bold flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Canlı Süt Takip Sistemi</span>
+            </div>
+            <div class="bg-emerald-900/85 backdrop-blur-md px-3.5 py-2 rounded-2xl shadow-lg border border-emerald-500/30 text-emerald-200 text-xs font-bold hidden sm:flex items-center gap-1.5">
+              <span>🌾 Doğal Köy Üretimi</span>
+            </div>
+          </div>
+
+          <div class="absolute bottom-4 left-4 right-4 sm:bottom-6 sm:left-6 sm:right-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-white">
+            <div>
+              <div class="text-xs uppercase font-extrabold tracking-wider text-emerald-400">Çiftlik Süt Yönetimi</div>
+              <div class="text-lg sm:text-2xl font-black">Güvenilir Köylü Hakediş & Fabrika Satış Portalı</div>
+            </div>
+            <button 
+              type="button" 
+              onclick="window.openLoginModal && window.openLoginModal('admin')"
+              class="px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer self-stretch sm:self-auto justify-center"
+            >
+              <span>Hemen Giriş Yap</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 Temel Özellik Kartı -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          
+          <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+            </div>
+            <h3 class="font-extrabold text-slate-900 text-base mb-1.5">Günlük Süt Kaydı</h3>
+            <p class="text-xs text-slate-500 leading-relaxed">
+              Her gün köylülerden toplanan sütler litre litre sisteme işlenir, geriye dönük tüm kayıtlar güvenle saklanır.
+            </p>
+          </div>
+
+          <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition">
+            <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <h3 class="font-extrabold text-slate-900 text-base mb-1.5">Borç & Ödeme Takibi</h3>
+            <p class="text-xs text-slate-500 leading-relaxed">
+              Kimin parası ödendi, kime ne kadar borç kaldı tek tıkla işaretlenir. Ödenen ve kalan tutar anında hesaplanır.
+            </p>
+          </div>
+
+          <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition">
+            <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+            </div>
+            <h3 class="font-extrabold text-slate-900 text-base mb-1.5">Fabrika Satışı & Kâr</h3>
+            <p class="text-xs text-slate-500 leading-relaxed">
+              Fabrikaya verilen süt miktarı ve satış fiyatına göre çiftliğin toplam geliri ve net kazancı anlık görüntülenir.
+            </p>
+          </div>
+
+          <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition">
+            <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            </div>
+            <h3 class="font-extrabold text-slate-900 text-base mb-1.5">Kişiye Özel Müşteri Portalı</h3>
+            <p class="text-xs text-slate-500 leading-relaxed">
+              Müşteriler sadece kendilerine ait süt miktarını ve ödeme durumunu görür. Başka verileri asla göremez.
+            </p>
+          </div>
+
+        </div>
+
+      </section>
+    </main>
+
+    <!-- Landing Altbilgi (Footer) -->
+    <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+      <div class="max-w-7xl mx-auto px-4">
+        © 2026 Çiftlik Süt Yönetim & Takip Sistemi &bull; Tüm Hakları Saklıdır.
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- 2. ÜST NAVBAR (GİRİŞ YAPILDIKTAN SONRA AKTİF OLUR) -->
+  <!-- ========================================================================= -->
+  <header id="main-header" class="hidden bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs backdrop-blur-md bg-white/95">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
       
       <!-- Logo & Başlık -->
