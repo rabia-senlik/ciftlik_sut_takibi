@@ -421,9 +421,7 @@ function setupEventListeners() {
   loginTabAdmin.addEventListener("click", () => switchLoginTab("admin"));
   loginTabCustomer.addEventListener("click", () => switchLoginTab("customer"));
 
-  // Giriş & Kayıt Ol Sekmeleri (Modal İçi)
-  if (authTabLogin) authTabLogin.addEventListener("click", () => switchAuthMode("login"));
-  if (authTabRegister) authTabRegister.addEventListener("click", () => switchAuthMode("register"));
+
 
   // Giriş Formu ve Etkileşimleri
   loginForm.addEventListener("submit", handleLogin);
@@ -661,22 +659,10 @@ function switchAuthMode(mode = "login") {
   clearLoginAlerts();
 
   if (mode === "register") {
-    if (authTabRegister) {
-      authTabRegister.className = "flex-1 py-2.5 text-xs font-black rounded-xl bg-white text-emerald-800 shadow-xs transition cursor-pointer select-none";
-    }
-    if (authTabLogin) {
-      authTabLogin.className = "flex-1 py-2.5 text-xs font-black rounded-xl text-slate-600 hover:text-slate-900 transition cursor-pointer select-none";
-    }
     if (authLoginSection) authLoginSection.classList.add("hidden");
     if (authRegisterSection) authRegisterSection.classList.remove("hidden");
     if (registerFullnameInput) registerFullnameInput.focus();
   } else {
-    if (authTabLogin) {
-      authTabLogin.className = "flex-1 py-2.5 text-xs font-black rounded-xl bg-white text-emerald-800 shadow-xs transition cursor-pointer select-none";
-    }
-    if (authTabRegister) {
-      authTabRegister.className = "flex-1 py-2.5 text-xs font-black rounded-xl text-slate-600 hover:text-slate-900 transition cursor-pointer select-none";
-    }
     if (authLoginSection) authLoginSection.classList.remove("hidden");
     if (authRegisterSection) authRegisterSection.classList.add("hidden");
     if (loginUsernameInput) loginUsernameInput.focus();
