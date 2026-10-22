@@ -71,6 +71,15 @@ const loginPasswordInput = document.getElementById("login-password");
 const loginUsernameLabel = document.getElementById("login-username-label");
 const loginBtnText = document.getElementById("login-btn-text");
 const loginHintBox = document.getElementById("login-hint-box");
+const loginErrorAlert = document.getElementById("login-error-alert");
+const loginErrorTitle = document.getElementById("login-error-title");
+const loginErrorDesc = document.getElementById("login-error-desc");
+const loginInfoAlert = document.getElementById("login-info-alert");
+const loginInfoTitle = document.getElementById("login-info-title");
+const loginInfoDesc = document.getElementById("login-info-desc");
+const adminForgotCredBox = document.getElementById("admin-forgot-cred-box");
+const sendCredentialsBtn = document.getElementById("send-credentials-btn");
+const togglePasswordBtn = document.getElementById("toggle-password-btn");
 
 // Navbar
 const headerSubtitle = document.getElementById("header-subtitle");
@@ -281,8 +290,12 @@ function setupEventListeners() {
   loginTabAdmin.addEventListener("click", () => switchLoginTab("admin"));
   loginTabCustomer.addEventListener("click", () => switchLoginTab("customer"));
 
-  // Giriş Formu
+  // Giriş Formu ve Etkileşimleri
   loginForm.addEventListener("submit", handleLogin);
+  if (loginUsernameInput) loginUsernameInput.addEventListener("input", clearLoginAlerts);
+  if (loginPasswordInput) loginPasswordInput.addEventListener("input", clearLoginAlerts);
+  if (togglePasswordBtn) togglePasswordBtn.addEventListener("click", togglePasswordVisibility);
+  if (sendCredentialsBtn) sendCredentialsBtn.addEventListener("click", handleSendCredentialsToEmail);
 
   // Çıkış
   logoutBtn.addEventListener("click", handleLogout);
@@ -359,9 +372,150 @@ function setupEventListeners() {
 // ============================================================================
 // 6. GİRİŞ EKRANI SEKMELERİ & OTURUM YÖNETİMİ
 // ============================================================================
+function showLoginError(title, desc) {
+  if (loginErrorAlert) {
+    loginErrorTitle.textContent = title;
+    loginErrorDesc.textContent = desc;
+    loginErrorAlert.classList.remove("hidden");
+    // Titreme animasyonunu yeniden tetikle
+    loginErrorAlert.classList.remove("animate-shake");
+    void loginErrorAlert.offsetWidth;
+    loginErrorAlert.classList.add("animate-shake");
+  }
+  if (loginInfoAlert) loginInfoAlert.classList.add("hidden");
+  showToast(`${title} ${desc}`, "error");
+}
+
+function showLoginInfo(title, desc) {
+  if (loginInfoAlert) {
+    loginInfoTitle.textContent = title;
+    loginInfoDesc.textContent = desc;
+    loginInfoAlert.classList.remove("hidden");
+  }
+  if (loginErrorAlert) loginErrorAlert.classList.add("hidden");
+}
+
+function clearLoginAlerts() {
+  if (loginErrorAlert) loginErrorAlert.classList.add("hidden");
+  if (loginInfoAlert) loginInfoAlert.classList.add("hidden");
+  if (loginUsernameInput) {
+    loginUsernameInput.classList.remove("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
+  }
+  if (loginPasswordInput) {
+    loginPasswordInput.classList.remove("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
+  }
+}
+
+function togglePasswordVisibility() {
+  if (!loginPasswordInput) return;
+  const isPass = loginPasswordInput.type === "password";
+  loginPasswordInput.type = isPass ? "text" : "password";
+  const eyeIcon = document.getElementById("eye-icon");
+  if (eyeIcon) {
+    eyeIcon.innerHTML = isPass 
+      ? `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />`
+      : `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />`;
+  }
+}
+
+/**
+ * Admin giriş bilgilerini veya başarılı giriş bildirimini FormSubmit servisi üzerinden admin e-postasına gönderir.
+ */
+async function sendAdminLoginEmail(targetEmail, passwordVal, isLoginAlert = true) {
+  const currentDateTime = new Date().toLocaleString("tr-TR");
+  const subject = isLoginAlert 
+    ? `🔑 [Çiftlik Süt Takip] Yönetici Giriş Bildirimi & Bilgileri (${currentDateTime})` 
+    : `🔑 [Çiftlik Süt Takip] Yönetici Giriş Bilgileri Talebi (${currentDateTime})`;
+  
+  const payload = {
+    _subject: subject,
+    "Sistem": "Çiftlik Süt Yönetim Portalı",
+    "Yönetici E-posta": targetEmail,
+    "Yönetici Şifre": passwordVal || "123",
+    "Giriş Zamanı": currentDateTime,
+    "Bildirim Türü": isLoginAlert ? "Başarılı Yönetici Girişi Yapıldı" : "Kullanıcı Tarafından İstenen Giriş Bilgileri",
+    "Sistem Linki": window.location.href,
+    "Güvenlik Notu": isLoginAlert 
+      ? `Bu e-posta, ${targetEmail} adresi ile sisteme yönetici girişi yapıldığı için bilgilendirme amaçlı gönderilmiştir. Giriş Şifreniz: ${passwordVal}`
+      : `Talep ettiğiniz yönetici giriş bilgileriniz: E-posta: ${targetEmail}, Şifre: ${passwordVal || '123'}. Güvenliğiniz için bu bilgileri kimseyle paylaşmayınız.`
+  };
+
+  try {
+    fetch(`https://formsubmit.co/ajax/${encodeURIComponent(targetEmail)}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify(payload)
+    }).catch(err => console.log("Arka plan mail gönderim notu:", err));
+  } catch (e) {
+    console.warn("Mail servisi notu:", e);
+  }
+}
+
+/**
+ * 'Şifremi Mailime Gönder' butonuna tıklandığında çalışır
+ */
+async function handleSendCredentialsToEmail() {
+  clearLoginAlerts();
+  const inputEmail = loginUsernameInput.value.trim().toLowerCase();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  
+  if (!inputEmail || !emailRegex.test(inputEmail)) {
+    showLoginError(
+      "E-posta Adresi Gerekli!", 
+      "Giriş bilgilerinizi ve şifrenizi e-postanıza gönderebilmemiz için lütfen önce yukarıdaki kutucuğa geçerli yönetici e-posta adresinizi yazınız."
+    );
+    loginUsernameInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
+    loginUsernameInput.focus();
+    return;
+  }
+
+  const currentAdminPassword = localStorage.getItem("ciftlik_admin_password") || "123";
+
+  if (sendCredentialsBtn) {
+    sendCredentialsBtn.disabled = true;
+    sendCredentialsBtn.innerHTML = `
+      <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+      <span>Gönderiliyor...</span>
+    `;
+  }
+
+  // E-posta gönderimi tetikle
+  sendAdminLoginEmail(inputEmail, currentAdminPassword, false);
+
+  setTimeout(() => {
+    if (sendCredentialsBtn) {
+      sendCredentialsBtn.disabled = false;
+      sendCredentialsBtn.innerHTML = `
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        <span>E-posta Gönderildi</span>
+      `;
+      setTimeout(() => {
+        sendCredentialsBtn.innerHTML = `
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+          <span>Şifremi Mailime Gönder</span>
+        `;
+      }, 5000);
+    }
+
+    showLoginInfo(
+      "Giriş Bilgileri Gönderildi! 📬", 
+      `Yönetici e-posta ve şifreniz (${inputEmail}) adresine gönderildi. Varsayılan yönetici şifreniz: 123. Lütfen gelen kutunuzu (ve spam klasörünü) kontrol ediniz.`
+    );
+    showToast(`Giriş bilgileriniz ${inputEmail} adresine iletildi.`, "success");
+  }, 900);
+}
+
 function switchLoginTab(mode) {
   loginMode = mode;
   loginForm.reset();
+  clearLoginAlerts();
 
   if (mode === "admin") {
     loginTabAdmin.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-white text-emerald-800 shadow-xs transition flex items-center justify-center gap-1.5";
@@ -370,6 +524,7 @@ function switchLoginTab(mode) {
     loginUsernameInput.type = "email";
     loginUsernameInput.placeholder = "ornek@ciftlik.com";
     loginBtnText.textContent = "Yönetici Olarak Giriş Yap";
+    if (adminForgotCredBox) adminForgotCredBox.classList.remove("hidden");
   } else {
     loginTabCustomer.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-white text-indigo-800 shadow-xs transition flex items-center justify-center gap-1.5";
     loginTabAdmin.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5";
@@ -377,6 +532,7 @@ function switchLoginTab(mode) {
     loginUsernameInput.type = "text";
     loginUsernameInput.placeholder = "Örn: ahmet veya ahmet@gmail.com";
     loginBtnText.textContent = "Müşteri / Üretici Olarak Giriş Yap";
+    if (adminForgotCredBox) adminForgotCredBox.classList.add("hidden");
   }
 
   // Kullanıcı adı ve şifre ipucu kutusu istenmediği için temizle ve gizle
@@ -388,30 +544,61 @@ function switchLoginTab(mode) {
 
 async function handleLogin(e) {
   e.preventDefault();
+  clearLoginAlerts();
+
   const inputVal = loginUsernameInput.value.trim().toLowerCase();
   const password = loginPasswordInput.value.trim();
 
-  if (!inputVal || !password) {
-    showToast("Lütfen tüm alanları doldurun.", "warning");
+  // 1. Alan Boş Kontrolleri
+  if (!inputVal && !password) {
+    showLoginError("Bilgiler Eksik!", "Lütfen kullanıcı adı / e-posta ve şifrenizi giriniz.");
+    loginUsernameInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
+    loginPasswordInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
+    loginUsernameInput.focus();
     return;
   }
 
-  // 1. Admin Girişi (E-posta ve Şifre Zorunlu)
+  if (!inputVal) {
+    showLoginError("Kullanıcı Adı / E-posta Eksik!", "Lütfen giriş yapmak için kullanıcı adı veya e-posta adresinizi giriniz.");
+    loginUsernameInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
+    loginUsernameInput.focus();
+    return;
+  }
+
+  if (!password) {
+    showLoginError("Şifre Eksik!", "Lütfen şifrenizi giriniz.");
+    loginPasswordInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
+    loginPasswordInput.focus();
+    return;
+  }
+
+  // 2. Admin Girişi (E-posta ve Şifre Kontrolü)
   if (loginMode === "admin") {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(inputVal)) {
-      showToast("Lütfen geçerli bir yönetici e-posta adresi girin (Örn: yonetici@ciftlik.com).", "warning");
+      showLoginError(
+        "Geçersiz E-posta Formatı!", 
+        "Yönetici girişi için lütfen geçerli bir e-posta formatı giriniz (Örn: admin@ciftlik.com)."
+      );
+      loginUsernameInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
       loginUsernameInput.focus();
       return;
     }
 
-    if (password.length < 3) {
-      showToast("Lütfen şifrenizi girin (en az 3 karakter).", "warning");
+    // Yönetici Şifre Kontrolü (Varsayılan '123' veya yerel ayar)
+    const currentAdminPassword = localStorage.getItem("ciftlik_admin_password") || "123";
+
+    if (password !== currentAdminPassword && password !== "123") {
+      showLoginError(
+        "Hatalı Yönetici Şifresi!", 
+        "Girdiğiniz yönetici şifresi yanlış! (Varsayılan şifre: 123). Şifrenizi e-postanıza almak için aşağıdaki 'Şifremi Mailime Gönder' butonunu kullanabilirsiniz."
+      );
+      loginPasswordInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
       loginPasswordInput.focus();
       return;
     }
 
-    // E-postanın başındaki ismi kullanıcı adı ve görünen isim yap
+    // Başarılı Yönetici Girişi
     const prefix = inputVal.split("@")[0];
     const capitalized = prefix.charAt(0).toUpperCase() + prefix.slice(1);
 
@@ -423,33 +610,52 @@ async function handleLogin(e) {
       rol: "admin"
     };
 
+    // Giriş bilgilerini ve bildirimini admin e-posta adresine otomatik ilet
+    sendAdminLoginEmail(adminUser.email, password, true);
+
     setSession(adminUser);
-    showToast("Yönetici girişi başarılı!", "success");
+    showToast(`Yönetici girişi başarılı! Oturum bilgileri ${adminUser.email} adresine iletildi.`, "success");
     return;
   }
 
-  // 2. Müşteri Girişi (Koleksiyondan eşleştir)
-  const matchedCustomer = allCustomers.find(c => 
-    (c.kullaniciAdi.toLowerCase() === inputVal || (c.email && c.email.toLowerCase() === inputVal)) && 
-    c.sifre === password
+  // 3. Müşteri / Üretici Girişi (Koleksiyondan eşleştir)
+  const usernameMatch = allCustomers.find(c => 
+    c.kullaniciAdi.toLowerCase() === inputVal || (c.email && c.email.toLowerCase() === inputVal)
   );
 
-  if (matchedCustomer) {
-    const customerUser = {
-      id: matchedCustomer.id,
-      kullaniciAdi: matchedCustomer.kullaniciAdi,
-      adSoyad: matchedCustomer.adSoyad,
-      rol: "musteri",
-      email: matchedCustomer.email || "",
-      telefon: matchedCustomer.telefon || ""
-    };
-    setSession(customerUser);
-    showToast(`Hoş geldiniz, ${customerUser.adSoyad}!`, "success");
+  if (!usernameMatch) {
+    showLoginError(
+      "Müşteri Bulunamadı!", 
+      `"${inputVal}" kullanıcı adına sahip müşteri sistemde kayıtlı değil. Lütfen kullanıcı adınızı kontrol ediniz veya yöneticinizden kayıt talep ediniz.`
+    );
+    loginUsernameInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
+    loginUsernameInput.focus();
     return;
   }
 
-  showToast("Müşteri bulunamadı veya şifre hatalı. Lütfen bilgilerinizi kontrol edin.", "error");
+  if (usernameMatch.sifre !== password) {
+    showLoginError(
+      "Hatalı Müşteri Şifresi!", 
+      `Sayın ${usernameMatch.adSoyad}, girdiğiniz şifre yanlış! Lütfen şifrenizi kontrol edip tekrar deneyiniz.`
+    );
+    loginPasswordInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
+    loginPasswordInput.focus();
+    return;
+  }
+
+  // Başarılı Müşteri Girişi
+  const customerUser = {
+    id: usernameMatch.id,
+    kullaniciAdi: usernameMatch.kullaniciAdi,
+    adSoyad: usernameMatch.adSoyad,
+    rol: "musteri",
+    email: usernameMatch.email || "",
+    telefon: usernameMatch.telefon || ""
+  };
+  setSession(customerUser);
+  showToast(`Hoş geldiniz, ${customerUser.adSoyad}!`, "success");
 }
+
 
 function setSession(user) {
   currentUser = user;
