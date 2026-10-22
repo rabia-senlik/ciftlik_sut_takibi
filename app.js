@@ -1079,7 +1079,7 @@ function applyUserView() {
   // 3. Tablo ve kartları hemen temizle
   if (recordsTableBody) recordsTableBody.innerHTML = "";
   if (customersTableBody) customersTableBody.innerHTML = "";
-  if (producerListBody) producerListBody.innerHTML = "";
+  if (customerListBox) customerListBox.innerHTML = "";
   updateDashboardCards([]);
   renderTable([]);
   renderCustomersTable();
