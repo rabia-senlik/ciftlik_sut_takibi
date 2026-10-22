@@ -91,9 +91,11 @@ const adminCustomersSection = document.getElementById("admin-customers-section")
 const adminCustomerCountBadge = document.getElementById("admin-customer-count-badge");
 const quickChangePriceBtn = document.getElementById("quick-change-price-btn");
 
-// Admin Süt Formu
+// Admin Süt Formu (Gün / Ay / Yıl Seçicileri)
 const milkForm = document.getElementById("milk-form");
-const dateInput = document.getElementById("input-date");
+const dateDay = document.getElementById("date-day");
+const dateMonth = document.getElementById("date-month");
+const dateYear = document.getElementById("date-year");
 const totalInput = document.getElementById("input-total");
 const factoryInput = document.getElementById("input-factory");
 const factoryPriceInput = document.getElementById("input-factory-price");
@@ -147,7 +149,9 @@ const custCardPrice = document.getElementById("cust-card-price");
 const custTotalMoney = document.getElementById("cust-total-money");
 const custTotalRecordsCount = document.getElementById("cust-total-records-count");
 const custMilkForm = document.getElementById("cust-milk-form");
-const custInputDate = document.getElementById("cust-input-date");
+const custDateDay = document.getElementById("cust-date-day");
+const custDateMonth = document.getElementById("cust-date-month");
+const custDateYear = document.getElementById("cust-date-year");
 const custInputAmount = document.getElementById("cust-input-amount");
 const custInputNote = document.getElementById("cust-input-note");
 const custLiveCalcTotal = document.getElementById("cust-live-calc-total");
@@ -180,25 +184,79 @@ const cancelDeleteBtn = document.getElementById("cancel-delete-btn");
 const confirmDeleteBtn = document.getElementById("confirm-delete-btn");
 
 // ============================================================================
-// 4. BAŞLANGIÇ (INIT)
+// 4. BAŞLANGIÇ (INIT) & TARİH SEÇİCİLERİ (GÜN / AY / YIL)
 // ============================================================================
 document.addEventListener("DOMContentLoaded", () => {
-  setDefaultDates();
+  initDateSelectors();
   setupEventListeners();
   initSettingsListener();
   initUsersListener();
   checkPersistedSession();
 });
 
+function initDateSelectors() {
+  // 1-31 Günler
+  const days = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, "0"));
+  // Yıllar: son 2 yıl ile gelecek 5 yıl arası
+  const currentYear = new Date().getFullYear();
+  const years = [];
+  for (let y = currentYear - 2; y <= currentYear + 5; y++) {
+    years.push(String(y));
+  }
+
+  function fillDaySelect(selectEl) {
+    if (!selectEl) return;
+    selectEl.innerHTML = "";
+    days.forEach(d => {
+      const opt = document.createElement("option");
+      opt.value = d;
+      opt.textContent = `${d}. Gün`;
+      selectEl.appendChild(opt);
+    });
+  }
+
+  function fillYearSelect(selectEl) {
+    if (!selectEl) return;
+    selectEl.innerHTML = "";
+    years.forEach(y => {
+      const opt = document.createElement("option");
+      opt.value = y;
+      opt.textContent = y;
+      selectEl.appendChild(opt);
+    });
+  }
+
+  fillDaySelect(dateDay);
+  fillYearSelect(dateYear);
+  fillDaySelect(custDateDay);
+  fillYearSelect(custDateYear);
+
+  setDefaultDates();
+}
+
 function setDefaultDates() {
   const today = new Date();
-  const yyyy = today.getFullYear();
-  const mm = String(today.getMonth() + 1).padStart(2, "0");
   const dd = String(today.getDate()).padStart(2, "0");
-  const formatted = `${yyyy}-${mm}-${dd}`;
-  
-  if (dateInput) dateInput.value = formatted;
-  if (custInputDate) custInputDate.value = formatted;
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const yyyy = String(today.getFullYear());
+
+  if (dateDay) dateDay.value = dd;
+  if (dateMonth) dateMonth.value = mm;
+  if (dateYear) dateYear.value = yyyy;
+
+  if (custDateDay) custDateDay.value = dd;
+  if (custDateMonth) custDateMonth.value = mm;
+  if (custDateYear) custDateYear.value = yyyy;
+}
+
+function getAdminSelectedDate() {
+  if (!dateDay || !dateMonth || !dateYear) return "";
+  return `${dateYear.value}-${dateMonth.value}-${dateDay.value}`;
+}
+
+function getCustomerSelectedDate() {
+  if (!custDateDay || !custDateMonth || !custDateYear) return "";
+  return `${custDateYear.value}-${custDateMonth.value}-${custDateDay.value}`;
 }
 
 // ============================================================================
@@ -293,60 +351,71 @@ function switchLoginTab(mode) {
   if (mode === "admin") {
     loginTabAdmin.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-white text-emerald-800 shadow-xs transition flex items-center justify-center gap-1.5";
     loginTabCustomer.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5";
-    loginUsernameLabel.textContent = "Yönetici E-posta veya Kullanıcı Adı";
-    loginUsernameInput.placeholder = "Örn: admin veya admin@ciftlik.com";
+    loginUsernameLabel.textContent = "Yönetici E-posta Adresi";
+    loginUsernameInput.type = "email";
+    loginUsernameInput.placeholder = "ornek@ciftlik.com";
     loginBtnText.textContent = "Yönetici Olarak Giriş Yap";
-    loginHintBox.innerHTML = `
-      <p class="text-xs text-emerald-800 font-medium">
-        🔑 <strong>Admin Giriş:</strong> <code class="font-bold bg-white px-1.5 py-0.5 rounded border border-emerald-200">admin</code> veya e-postanız &bull; Şifre: <code class="font-bold bg-white px-1.5 py-0.5 rounded border border-emerald-200">123</code>
-      </p>
-    `;
   } else {
     loginTabCustomer.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-white text-indigo-800 shadow-xs transition flex items-center justify-center gap-1.5";
     loginTabAdmin.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5";
-    loginUsernameLabel.textContent = "Müşteri / Üretici Kullanıcı Adı";
+    loginUsernameLabel.textContent = "Müşteri / Üretici Kullanıcı Adı veya E-posta";
+    loginUsernameInput.type = "text";
     loginUsernameInput.placeholder = "Örn: ahmet veya ahmet@gmail.com";
     loginBtnText.textContent = "Müşteri / Üretici Olarak Giriş Yap";
-    loginHintBox.innerHTML = `
-      <p class="text-xs text-indigo-800 font-medium">
-        👤 <strong>Müşteri Girişi:</strong> Çiftlik yöneticisinin sizin için oluşturduğu kullanıcı adı veya e-posta ve şifrenizle giriş yapabilirsiniz.
-      </p>
-    `;
+  }
+
+  // Kullanıcı adı ve şifre ipucu kutusu istenmediği için temizle ve gizle
+  if (loginHintBox) {
+    loginHintBox.innerHTML = "";
+    loginHintBox.classList.add("hidden");
   }
 }
 
 async function handleLogin(e) {
   e.preventDefault();
-  const username = loginUsernameInput.value.trim().toLowerCase();
+  const inputVal = loginUsernameInput.value.trim().toLowerCase();
   const password = loginPasswordInput.value.trim();
 
-  if (!username || !password) {
-    showToast("Lütfen kullanıcı adı / e-posta ve şifrenizi girin.", "warning");
+  if (!inputVal || !password) {
+    showToast("Lütfen tüm alanları doldurun.", "warning");
     return;
   }
 
-  // 1. Admin Girişi (admin / 123 veya e-posta kontrolü)
+  // 1. Admin Girişi (E-posta ve Şifre Zorunlu)
   if (loginMode === "admin") {
-    if ((username === "admin" || username.includes("admin") || username.includes("@")) && password === "123") {
-      const adminUser = {
-        id: "admin_root",
-        kullaniciAdi: username,
-        email: username.includes("@") ? username : "admin@ciftlik.com",
-        adSoyad: "Çiftlik Yöneticisi",
-        rol: "admin"
-      };
-      setSession(adminUser);
-      showToast("Yönetici girişi başarılı!", "success");
-      return;
-    } else {
-      showToast("Hatalı yönetici bilgisi girdiniz!", "error");
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(inputVal)) {
+      showToast("Lütfen geçerli bir yönetici e-posta adresi girin (Örn: yonetici@ciftlik.com).", "warning");
+      loginUsernameInput.focus();
       return;
     }
+
+    if (password.length < 3) {
+      showToast("Lütfen şifrenizi girin (en az 3 karakter).", "warning");
+      loginPasswordInput.focus();
+      return;
+    }
+
+    // E-postanın başındaki ismi kullanıcı adı ve görünen isim yap
+    const prefix = inputVal.split("@")[0];
+    const capitalized = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+
+    const adminUser = {
+      id: "admin_" + inputVal.replace(/[^a-zA-Z0-9]/g, "_"),
+      kullaniciAdi: inputVal,
+      email: inputVal,
+      adSoyad: `${capitalized} (Yönetici)`,
+      rol: "admin"
+    };
+
+    setSession(adminUser);
+    showToast("Yönetici girişi başarılı!", "success");
+    return;
   }
 
   // 2. Müşteri Girişi (Koleksiyondan eşleştir)
   const matchedCustomer = allCustomers.find(c => 
-    (c.kullaniciAdi.toLowerCase() === username || (c.email && c.email.toLowerCase() === username)) && 
+    (c.kullaniciAdi.toLowerCase() === inputVal || (c.email && c.email.toLowerCase() === inputVal)) && 
     c.sifre === password
   );
 
@@ -356,6 +425,7 @@ async function handleLogin(e) {
       kullaniciAdi: matchedCustomer.kullaniciAdi,
       adSoyad: matchedCustomer.adSoyad,
       rol: "musteri",
+      email: matchedCustomer.email || "",
       telefon: matchedCustomer.telefon || ""
     };
     setSession(customerUser);
@@ -646,9 +716,9 @@ async function handleAdminFormSubmit(e) {
   e.preventDefault();
   const { totalProduced, factoryMilk, fPrice, pPrice, factoryIncome, totalPublicExpense, netProfit } = handleLiveCalculation();
 
-  if (!dateInput.value) {
-    showToast("Lütfen kayıt tarihini seçin.", "warning");
-    dateInput.focus();
+  const selectedDate = getAdminSelectedDate();
+  if (!selectedDate) {
+    showToast("Lütfen geçerli bir kayıt tarihi seçin.", "warning");
     return;
   }
 
@@ -664,7 +734,7 @@ async function handleAdminFormSubmit(e) {
 
   try {
     const recordPayload = {
-      tarih: dateInput.value,
+      tarih: selectedDate,
       toplamUretim: totalProduced,
       toplananSut: totalProduced, // Toplanan süt otomatik toplam üretimdir
       fabrikaSut: factoryMilk,
@@ -685,7 +755,7 @@ async function handleAdminFormSubmit(e) {
     for (const prod of formProducers) {
       if (prod.musteriKullaniciAdi) {
         await addDoc(collection(db, COL_CUSTOMER_LOGS), {
-          tarih: dateInput.value,
+          tarih: selectedDate,
           musteriKullaniciAdi: prod.musteriKullaniciAdi,
           musteriAdSoyad: prod.adSoyad,
           miktar: Number(prod.miktar),
@@ -771,16 +841,7 @@ function renderTable(records) {
     const tr = document.createElement("tr");
     tr.className = "hover:bg-slate-50/80 transition-colors group";
 
-    let dateStr = record.tarih;
-    try {
-      const parts = record.tarih.split("-");
-      if (parts.length === 3) {
-        const d = new Date(parts[0], parts[1] - 1, parts[2]);
-        dateStr = d.toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" });
-      }
-    } catch (e) {
-      dateStr = record.tarih;
-    }
+    let dateStr = formatDisplayDate(record.tarih);
 
     const fGelir = Number(record.fabrikaGelir || (Number(record.fabrikaSut || 0) * (record.fabrikaFiyat || factoryPrice)));
     const hBorc = Number(record.halkaOdenecekPara || 0);
@@ -1018,12 +1079,12 @@ function handleCustomerLiveCalc() {
 
 async function handleCustomerFormSubmit(e) {
   e.preventDefault();
-  const dateVal = custInputDate.value;
+  const dateVal = getCustomerSelectedDate();
   const amount = parseFloat(custInputAmount.value);
   const note = custInputNote.value.trim();
 
   if (!dateVal) {
-    showToast("Lütfen teslim tarihini seçin.", "warning");
+    showToast("Lütfen geçerli bir teslim tarihi seçin.", "warning");
     return;
   }
 
@@ -1080,16 +1141,7 @@ function renderCustomerPortalTable() {
     const tr = document.createElement("tr");
     tr.className = "hover:bg-slate-50 transition-colors";
 
-    let dateStr = log.tarih;
-    try {
-      const parts = log.tarih.split("-");
-      if (parts.length === 3) {
-        const d = new Date(parts[0], parts[1] - 1, parts[2]);
-        dateStr = d.toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" });
-      }
-    } catch (e) {
-      dateStr = log.tarih;
-    }
+    let dateStr = formatDisplayDate(log.tarih);
 
     const price = log.birimFiyat || publicPrice;
     const tutar = log.tutar || (Number(log.miktar) * price);
@@ -1138,8 +1190,11 @@ function closeEmailModal() {
 function updateReportPreview() {
   const isMonthly = document.querySelector('input[name="reportFrequency"]:checked').value === "monthly";
   const now = new Date();
-  const todayStr = now.toISOString().split("T")[0];
-  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const todayStr = `${yyyy}-${mm}-${dd}`;
+  const currentMonthStr = `${yyyy}-${mm}`;
 
   let filtered = [];
   if (isMonthly) {
@@ -1290,3 +1345,18 @@ function escapeHtml(str) {
   if (!str) return "";
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
+
+/**
+ * ISO Tarih formatını (YYYY-MM-DD) Türk formatı Gün.Ay.Yıl (DD.MM.YYYY) olarak biçimlendirir.
+ */
+function formatDisplayDate(isoDateStr) {
+  if (!isoDateStr) return "-";
+  try {
+    const parts = String(isoDateStr).split("-");
+    if (parts.length === 3) {
+      return `${parts[2]}.${parts[1]}.${parts[0]}`;
+    }
+  } catch (e) {}
+  return String(isoDateStr);
+}
+

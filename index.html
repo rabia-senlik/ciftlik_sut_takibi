@@ -54,7 +54,7 @@
   <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-auto"></div>
 
   <!-- ========================================================================= -->
-  <!-- 1. GİRİŞ EKRANI (SEKMELİ: ADMIN & MÜŞTERİ AYRI GİRİŞİ) -->
+  <!-- 1. GİRİŞ EKRANI (SEKMELİ: ADMIN E-POSTA & MÜŞTERİ AYRI GİRİŞİ) -->
   <!-- ========================================================================= -->
   <div id="login-view" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-100 relative overflow-hidden">
@@ -96,18 +96,18 @@
         
         <div>
           <label for="login-username" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5" id="login-username-label">
-            Yönetici E-posta veya Kullanıcı Adı
+            Yönetici E-posta Adresi
           </label>
           <div class="relative">
             <input 
-              type="text" 
+              type="email" 
               id="login-username" 
-              placeholder="Örn: admin veya admin@ciftlik.com" 
+              placeholder="ornek@ciftlik.com" 
               required
               class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
             >
             <svg class="w-5 h-5 text-slate-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
             </svg>
           </div>
         </div>
@@ -142,13 +142,6 @@
         </button>
       </form>
 
-      <!-- Yardım ve Bilgi Kutusu -->
-      <div id="login-hint-box" class="mt-5 p-3 bg-emerald-50/80 rounded-xl border border-emerald-100 text-center">
-        <p class="text-xs text-emerald-800 font-medium">
-          🔑 <strong>Admin Giriş:</strong> <code class="font-bold bg-white px-1.5 py-0.5 rounded border border-emerald-200">admin</code> veya e-postanız &bull; Şifre: <code class="font-bold bg-white px-1.5 py-0.5 rounded border border-emerald-200">123</code>
-        </p>
-      </div>
-
     </div>
   </div>
 
@@ -174,11 +167,11 @@
       <!-- Sağ Taraf: E-posta Raporu, Fiyat & Kullanıcı Bilgisi -->
       <div class="flex items-center gap-2 sm:gap-3">
         
-        <!-- E-posta Rapor Ayarları Butonu (Sadece Admin Görür) -->
+        <!-- E-posta Rapor Butonu -->
         <button 
           id="email-report-btn"
           class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition shadow-xs"
-          title="E-posta Raporu Gönder & Ayarla"
+          title="E-posta Raporu Gönder"
         >
           <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -253,7 +246,6 @@
       </div>
 
       <div class="flex items-center gap-2">
-        <!-- Hızlı Fiyat Düzenleme -->
         <button 
           id="quick-change-price-btn" 
           class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-xs transition"
@@ -341,18 +333,42 @@
 
           <form id="milk-form" class="space-y-4" novalidate>
             
-            <!-- Tarih -->
+            <!-- TARİH SEÇİCİ (AÇIK GÜN / AY / YIL SIRALAMASI) -->
             <div>
-              <label for="input-date" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                Kayıt Tarihi <span class="text-rose-500">*</span>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                Kayıt Tarihi (Gün / Ay / Yıl) <span class="text-rose-500">*</span>
               </label>
-              <input 
-                type="date" 
-                id="input-date" 
-                name="tarih" 
-                required 
-                class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
-              >
+              <div class="grid grid-cols-3 gap-2">
+                <!-- Gün -->
+                <div class="relative">
+                  <select id="date-day" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition">
+                    <!-- JS ile 01-31 oluşturulur -->
+                  </select>
+                </div>
+                <!-- Ay -->
+                <div class="relative">
+                  <select id="date-month" class="w-full px-2 sm:px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition">
+                    <option value="01">01 - Ocak</option>
+                    <option value="02">02 - Şubat</option>
+                    <option value="03">03 - Mart</option>
+                    <option value="04">04 - Nisan</option>
+                    <option value="05">05 - Mayıs</option>
+                    <option value="06">06 - Haziran</option>
+                    <option value="07">07 - Temmuz</option>
+                    <option value="08">08 - Ağustos</option>
+                    <option value="09">09 - Eylül</option>
+                    <option value="10">10 - Ekim</option>
+                    <option value="11">11 - Kasım</option>
+                    <option value="12">12 - Aralık</option>
+                  </select>
+                </div>
+                <!-- Yıl -->
+                <div class="relative">
+                  <select id="date-year" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition">
+                    <!-- JS ile yıllar oluşturulur -->
+                  </select>
+                </div>
+              </div>
             </div>
 
             <!-- 1. Toplanan Süt (Otomatik Toplam Üretim) -->
@@ -808,7 +824,7 @@
     <!-- Müşteri İşlem Alanı -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
       
-      <!-- Müşteri Kendi Sütünü Yazar -->
+      <!-- Müşteri Kendi Sütünü Yazar (GÜN / AY / YIL SIRALI) -->
       <section class="lg:col-span-5 bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-7">
         <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
           <div>
@@ -821,16 +837,30 @@
         </div>
 
         <form id="cust-milk-form" class="space-y-4" novalidate>
+          
+          <!-- Müşteri Tarih Seçici (Gün / Ay / Yıl) -->
           <div>
-            <label for="cust-input-date" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-              Teslim Tarihi <span class="text-rose-500">*</span>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+              Teslim Tarihi (Gün / Ay / Yıl) <span class="text-rose-500">*</span>
             </label>
-            <input 
-              type="date" 
-              id="cust-input-date" 
-              required 
-              class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
-            >
+            <div class="grid grid-cols-3 gap-2">
+              <select id="cust-date-day" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"></select>
+              <select id="cust-date-month" class="w-full px-2 sm:px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition">
+                <option value="01">01 - Ocak</option>
+                <option value="02">02 - Şubat</option>
+                <option value="03">03 - Mart</option>
+                <option value="04">04 - Nisan</option>
+                <option value="05">05 - Mayıs</option>
+                <option value="06">06 - Haziran</option>
+                <option value="07">07 - Temmuz</option>
+                <option value="08">08 - Ağustos</option>
+                <option value="09">09 - Eylül</option>
+                <option value="10">10 - Ekim</option>
+                <option value="11">11 - Kasım</option>
+                <option value="12">12 - Aralık</option>
+              </select>
+              <select id="cust-date-year" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"></select>
+            </div>
           </div>
 
           <div>
@@ -953,7 +983,7 @@
           <input 
             type="email" 
             id="report-email-input" 
-            placeholder="Örn: ciftliksahibi@gmail.com" 
+            placeholder="ornek@ciftlik.com" 
             required 
             class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
           >
