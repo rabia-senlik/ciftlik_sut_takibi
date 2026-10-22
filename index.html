@@ -54,9 +54,27 @@
     .stat-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
     .stat-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); }
     @media print {
-      body * { visibility: hidden; }
-      #printable-report, #printable-report * { visibility: visible; }
-      #printable-report { position: absolute; left: 0; top: 0; width: 100%; }
+      @page {
+        size: landscape;
+        margin: 4mm;
+      }
+      body * { visibility: hidden !important; }
+      #excel-matrix-print-area, #excel-matrix-print-area * {
+        visibility: visible !important;
+      }
+      #excel-matrix-print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        display: block !important;
+        background: white;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      #printable-report, #printable-report * { 
+        visibility: visible !important; 
+      }
     }
     @keyframes shake {
       0%, 100% { transform: translateX(0); }
@@ -482,7 +500,17 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
           </svg>
-          <span>Toplanan Süt & Fabrika Satışı</span>
+          <span>Günlük Kayıt & Fabrika</span>
+        </button>
+        <button 
+          id="tab-matrix-btn" 
+          class="px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-2 shadow-2xs"
+        >
+          <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <span>Excel Çizelgesi (Aylık Tablo)</span>
+          <span class="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded-full font-extrabold animate-pulse">YENİ</span>
         </button>
         <button 
           id="tab-customers-btn" 
@@ -491,7 +519,7 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
           </svg>
-          <span>Müşteri / Üretici Yönetimi</span>
+          <span>Müşteri & Üretici Yönetimi</span>
           <span id="admin-customer-count-badge" class="bg-indigo-100 text-indigo-800 text-[10px] px-1.5 py-0.2 rounded-full font-extrabold">0</span>
         </button>
       </div>
@@ -893,7 +921,173 @@
 
     </div>
 
-    <!-- SEKME 2: MÜŞTERİ / ÜRETİCİ YÖNETİMİ BÖLÜMÜ -->
+    <!-- ========================================================================= -->
+    <!-- SEKME 2: AYLIK EXCEL ÇİZELGESİ & BÖLGE MATRİS TABLOSU (PDF & EXCEL ÇIKTILI) -->
+    <!-- ========================================================================= -->
+    <div id="admin-matrix-section" class="hidden space-y-6">
+      
+      <!-- Kontrol & Aksiyon Çubuğu -->
+      <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        
+        <!-- Sol Taraf: Filtreler (Ay, Yıl, Dönem, Bölge, Alış Fiyatı) -->
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex items-center gap-1.5">
+            <label for="matrix-month-select" class="text-xs font-bold text-slate-500 uppercase">Dönem:</label>
+            <select id="matrix-month-select" class="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="10" selected>Ekim (10)</option>
+              <option value="11">Kasım (11)</option>
+              <option value="12">Aralık (12)</option>
+              <option value="01">Ocak (01)</option>
+              <option value="02">Şubat (02)</option>
+              <option value="03">Mart (03)</option>
+              <option value="04">Nisan (04)</option>
+              <option value="05">Mayıs (05)</option>
+              <option value="06">Haziran (06)</option>
+              <option value="07">Temmuz (07)</option>
+              <option value="08">Ağustos (08)</option>
+              <option value="09">Eylül (09)</option>
+            </select>
+            <select id="matrix-year-select" class="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="2026" selected>2026</option>
+              <option value="2025">2025</option>
+              <option value="2027">2027</option>
+            </select>
+          </div>
+
+          <div class="flex items-center gap-1.5">
+            <label for="matrix-days-range" class="text-xs font-bold text-slate-500 uppercase">Günler:</label>
+            <select id="matrix-days-range" class="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="16-31" selected>16 - 31 (Örnek Excel Dönemi)</option>
+              <option value="01-15">01 - 15 (1. Dönem)</option>
+              <option value="01-31">01 - 31 (Tam Ay)</option>
+            </select>
+          </div>
+
+          <div class="flex items-center gap-1.5">
+            <label for="matrix-region-filter" class="text-xs font-bold text-slate-500 uppercase">Bölge:</label>
+            <select id="matrix-region-filter" class="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="all">Tüm Bölgeler</option>
+              <option value="VELİMEŞE">VELİMEŞE</option>
+              <option value="EFLAİM">EFLAİM</option>
+              <option value="KAPAKLI">KAPAKLI</option>
+              <option value="SÜTÇÜLER">SÜTÇÜLER</option>
+            </select>
+          </div>
+
+          <div class="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 rounded-xl border border-amber-200 text-xs font-bold text-amber-900">
+            <span>Alış Fiyatı:</span>
+            <input type="number" step="0.01" id="matrix-unit-price-input" value="24.30" class="w-16 bg-white border border-amber-300 rounded px-1.5 py-0.5 text-center font-black text-amber-800 focus:outline-none">
+            <span>₺/LT</span>
+          </div>
+        </div>
+
+        <!-- Sağ Taraf: Aksiyon Butonları -->
+        <div class="flex flex-wrap items-center gap-2">
+          
+          <!-- PDF Olarak İndir / Yazdır -->
+          <button 
+            id="matrix-export-pdf-btn"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition active:scale-95"
+            title="Tabloyu yatay A4 PDF formatında indir veya yazdır"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            <span>PDF İndir / Yazdır</span>
+          </button>
+
+          <!-- Excel (.csv) İndir -->
+          <button 
+            id="matrix-export-excel-btn"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition active:scale-95"
+            title="Excel uyumlu (.csv) dosyası olarak bilgisayarına indir"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span>Excel (.csv) İndir</span>
+          </button>
+
+          <!-- E-posta Gönder -->
+          <button 
+            id="matrix-export-email-btn"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition active:scale-95"
+            title="Bu çizelgeyi e-posta olarak gönder"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            <span>E-posta Gönder</span>
+          </button>
+
+          <!-- Excel Listesini Yükle -->
+          <button 
+            id="matrix-seed-btn"
+            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+            title="Excel fotoğrafındaki üretici listesini ve örnek günlerini sisteme yükle"
+          >
+            <span>⚡ Excel Üreticilerini Yükle</span>
+          </button>
+
+        </div>
+
+      </div>
+
+      <!-- Excel Tablo Kartı (Matris Görünümü) -->
+      <div id="excel-matrix-card" class="bg-white rounded-3xl border border-slate-300 shadow-md p-4 sm:p-6 overflow-hidden">
+        
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-4 border-b border-slate-200 gap-2">
+          <div>
+            <h2 id="matrix-table-title" class="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+              <span>📋 Süt Toplama ve Üretici Hakediş Çizelgesi</span>
+            </h2>
+            <p class="text-xs text-slate-500" id="matrix-table-subtitle">Dönem: 16.10.2026 - 31.10.2026 &bull; Alış Birim Fiyatı: 24.30 ₺/LT</p>
+          </div>
+          <div class="text-xs text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 inline-flex items-center gap-1.5">
+            <span class="text-emerald-600 font-bold">💡 İpucu:</span>
+            <span>Hücredeki sayıya tıklayarak süt miktarını veya kesintiyi anında güncelleyebilirsiniz.</span>
+          </div>
+        </div>
+
+        <!-- Gerçek Excel Matris Tablosu -->
+        <div class="overflow-x-auto border border-slate-400 rounded-lg max-h-[72vh] shadow-inner">
+          <table id="matrix-table" class="w-full text-xs text-center border-collapse select-none">
+            <!-- JS ile dinamik render edilecek -->
+          </table>
+        </div>
+
+        <!-- Tablo Altı Finansal Özet Kartları (Fotoğraftaki Birebir Tasarım) -->
+        <div class="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-rose-50 border-2 border-rose-200 p-4 rounded-2xl text-center shadow-xs">
+            <span class="text-[11px] font-black uppercase tracking-wider text-rose-700 block">GELEN PARA (FABRİKA SATIŞ)</span>
+            <strong id="matrix-box-factory-income" class="text-xl sm:text-2xl font-black text-rose-900 block mt-1">0.00 ₺</strong>
+            <span class="text-[10px] text-rose-600 font-semibold" id="matrix-box-factory-detail">Kantar Sütü Satış Değeri</span>
+          </div>
+
+          <div class="bg-rose-50 border-2 border-rose-200 p-4 rounded-2xl text-center shadow-xs">
+            <span class="text-[11px] font-black uppercase tracking-wider text-rose-700 block">ÖDENEN / ÖDENECEK PARA</span>
+            <strong id="matrix-box-public-expense" class="text-xl sm:text-2xl font-black text-rose-900 block mt-1">0.00 ₺</strong>
+            <span class="text-[10px] text-rose-600 font-semibold">Halka Net Ödenecek Hakediş</span>
+          </div>
+
+          <div class="bg-white border-2 border-slate-300 p-4 rounded-2xl text-center shadow-xs">
+            <span class="text-[11px] font-black uppercase tracking-wider text-slate-500 block">KALAN KÂR / BAKİYE</span>
+            <strong id="matrix-box-net-profit" class="text-xl sm:text-2xl font-black text-slate-900 block mt-1">0.00 ₺</strong>
+            <span class="text-[10px] text-slate-500 font-semibold">Gelen Para - Ödenen Para</span>
+          </div>
+
+          <div class="bg-amber-50 border-2 border-amber-200 p-4 rounded-2xl text-center shadow-xs">
+            <span class="text-[11px] font-black uppercase tracking-wider text-amber-800 block">KESİLECEK PARA TOPLAMI</span>
+            <strong id="matrix-box-total-deductions" class="text-xl sm:text-2xl font-black text-amber-900 block mt-1">0.00 ₺</strong>
+            <span class="text-[10px] text-amber-700 font-semibold">Avans, Yem & Masraf Kesintileri</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- SEKME 3: MÜŞTERİ / ÜRETİCİ YÖNETİMİ BÖLÜMÜ -->
     <div id="admin-customers-section" class="hidden">
       
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -962,6 +1156,46 @@
                 placeholder="Örn: 0555 123 4567" 
                 class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
               >
+            </div>
+
+            <!-- Bölge / Mahalle / Köy Grubu -->
+            <div>
+              <label for="new-cust-region" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                Bölge / Köy / Mahalle Grubu
+              </label>
+              <div class="relative">
+                <input 
+                  type="text" 
+                  id="new-cust-region" 
+                  list="region-suggestions"
+                  placeholder="Örn: VELİMEŞE, EFLAİM, KAPAKLI, SÜTÇÜLER" 
+                  class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                >
+                <datalist id="region-suggestions">
+                  <option value="VELİMEŞE">
+                  <option value="EFLAİM">
+                  <option value="KAPAKLI">
+                  <option value="SÜTÇÜLER">
+                  <option value="DİĞER">
+                </datalist>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">Excel çizelgesinde üreticinin ait olduğu grup</p>
+            </div>
+
+            <!-- Kesilecek Para / Avans (₺) -->
+            <div>
+              <label for="new-cust-deduction" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                Kesilecek Para / Avans / Yem (₺)
+              </label>
+              <input 
+                type="number" 
+                step="0.01"
+                min="0"
+                id="new-cust-deduction" 
+                placeholder="Örn: 1300.00 (Kesinti yoksa 0)" 
+                class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              >
+              <p class="text-[11px] text-slate-400 mt-1">Üreticinin brüt süt hakedişinden düşülecek borç/avans tutarı</p>
             </div>
 
             <button 
@@ -1192,14 +1426,18 @@
           <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
             Rapor Dönemi / Sıklığı
           </label>
-          <div class="grid grid-cols-2 gap-3">
-            <label class="flex items-center gap-2 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 text-xs font-bold text-slate-700">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <label class="flex items-center gap-2 p-2.5 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 text-xs font-bold text-slate-700">
               <input type="radio" name="reportFrequency" value="daily" checked class="text-blue-600 focus:ring-blue-500">
-              <span>📅 Günlük Rapor (Bugün)</span>
+              <span>📅 Günlük Rapor</span>
             </label>
-            <label class="flex items-center gap-2 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 text-xs font-bold text-slate-700">
+            <label class="flex items-center gap-2 p-2.5 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 text-xs font-bold text-slate-700">
               <input type="radio" name="reportFrequency" value="monthly" class="text-blue-600 focus:ring-blue-500">
-              <span>📆 Aylık Rapor (Bu Ay)</span>
+              <span>📆 Aylık Rapor</span>
+            </label>
+            <label class="flex items-center gap-2 p-2.5 border border-emerald-200 bg-emerald-50/40 rounded-xl cursor-pointer hover:bg-emerald-50 text-xs font-bold text-emerald-900">
+              <input type="radio" name="reportFrequency" value="matrix" class="text-emerald-600 focus:ring-emerald-500">
+              <span>📋 Excel Çizelgesi</span>
             </label>
           </div>
         </div>
@@ -1442,6 +1680,44 @@
         </button>
       </div>
     </div>
+  </div>
+
+  <!-- Excel Matris Hücre Düzenleme Modalı -->
+  <div id="matrix-cell-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+        <h3 id="cell-modal-title" class="text-sm font-extrabold text-slate-900">Değer Düzenle</h3>
+        <button id="close-cell-modal-btn" type="button" class="p-1 text-slate-400 hover:text-slate-700 rounded-lg text-lg font-bold">✕</button>
+      </div>
+      <form id="matrix-cell-form" class="space-y-4">
+        <div>
+          <label id="cell-modal-label" for="cell-modal-input" class="block text-xs font-bold text-slate-600 mb-1.5">
+            Miktar / Değer:
+          </label>
+          <input 
+            type="number" 
+            step="any" 
+            id="cell-modal-input" 
+            required 
+            class="w-full px-4 py-3 bg-slate-50 border-2 border-emerald-500 rounded-xl text-lg font-black text-slate-900 focus:bg-white focus:outline-none"
+          >
+          <p id="cell-modal-hint" class="text-[11px] text-slate-400 mt-1">Örn: 27</p>
+        </div>
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button type="button" id="cancel-cell-modal-btn" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">
+            İptal
+          </button>
+          <button type="submit" id="save-cell-modal-btn" class="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md transition">
+            Kaydet
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- A4 Yatay Yazdırma ve PDF Alanı (Yalnızca Print / PDF Sırasında Görünür) -->
+  <div id="excel-matrix-print-area" class="hidden p-2 bg-white text-black">
+    <!-- JS ile print sırasında doldurulacak -->
   </div>
 
   <!-- Footer -->

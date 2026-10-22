@@ -96,11 +96,42 @@ const emailReportBtn = document.getElementById("email-report-btn");
 
 // Admin Sekmeleri & Bölümleri
 const tabMilkBtn = document.getElementById("tab-milk-btn");
+const tabMatrixBtn = document.getElementById("tab-matrix-btn");
 const tabCustomersBtn = document.getElementById("tab-customers-btn");
 const adminMilkSection = document.getElementById("admin-milk-section");
+const adminMatrixSection = document.getElementById("admin-matrix-section");
 const adminCustomersSection = document.getElementById("admin-customers-section");
 const adminCustomerCountBadge = document.getElementById("admin-customer-count-badge");
 const quickChangePriceBtn = document.getElementById("quick-change-price-btn");
+
+// Excel Çizelgesi (Aylık Matris) Elementleri
+const matrixMonthSelect = document.getElementById("matrix-month-select");
+const matrixYearSelect = document.getElementById("matrix-year-select");
+const matrixDaysRange = document.getElementById("matrix-days-range");
+const matrixRegionFilter = document.getElementById("matrix-region-filter");
+const matrixUnitPriceInput = document.getElementById("matrix-unit-price-input");
+const matrixTable = document.getElementById("matrix-table");
+const matrixTableTitle = document.getElementById("matrix-table-title");
+const matrixTableSubtitle = document.getElementById("matrix-table-subtitle");
+const matrixBoxFactoryIncome = document.getElementById("matrix-box-factory-income");
+const matrixBoxPublicExpense = document.getElementById("matrix-box-public-expense");
+const matrixBoxNetProfit = document.getElementById("matrix-box-net-profit");
+const matrixBoxTotalDeductions = document.getElementById("matrix-box-total-deductions");
+const matrixExportPdfBtn = document.getElementById("matrix-export-pdf-btn");
+const matrixExportExcelBtn = document.getElementById("matrix-export-excel-btn");
+const matrixExportEmailBtn = document.getElementById("matrix-export-email-btn");
+const matrixSeedBtn = document.getElementById("matrix-seed-btn");
+
+// Hücre Düzenleme Modalı & Yazdırma Alanı
+const matrixCellModal = document.getElementById("matrix-cell-modal");
+const matrixCellForm = document.getElementById("matrix-cell-form");
+const cellModalTitle = document.getElementById("cell-modal-title");
+const cellModalLabel = document.getElementById("cell-modal-label");
+const cellModalInput = document.getElementById("cell-modal-input");
+const cellModalHint = document.getElementById("cell-modal-hint");
+const closeCellModalBtn = document.getElementById("close-cell-modal-btn");
+const cancelCellModalBtn = document.getElementById("cancel-cell-modal-btn");
+const excelMatrixPrintArea = document.getElementById("excel-matrix-print-area");
 
 // Admin Süt Formu (Gün / Ay / Yıl Seçicileri)
 const milkForm = document.getElementById("milk-form");
@@ -150,6 +181,8 @@ const newCustName = document.getElementById("new-cust-name");
 const newCustUsername = document.getElementById("new-cust-username");
 const newCustPassword = document.getElementById("new-cust-password");
 const newCustPhone = document.getElementById("new-cust-phone");
+const newCustRegion = document.getElementById("new-cust-region");
+const newCustDeduction = document.getElementById("new-cust-deduction");
 const customersTableBody = document.getElementById("customers-table-body");
 const customersEmptyState = document.getElementById("customers-empty-state");
 
@@ -300,7 +333,24 @@ function setupEventListeners() {
 
   // Admin Sekmeleri
   tabMilkBtn.addEventListener("click", () => switchAdminTab("milk"));
+  if (tabMatrixBtn) tabMatrixBtn.addEventListener("click", () => switchAdminTab("matrix"));
   tabCustomersBtn.addEventListener("click", () => switchAdminTab("customers"));
+
+  // Excel Çizelgesi (Aylık Matris) Olayları
+  if (matrixMonthSelect) matrixMonthSelect.addEventListener("change", renderMatrixTable);
+  if (matrixYearSelect) matrixYearSelect.addEventListener("change", renderMatrixTable);
+  if (matrixDaysRange) matrixDaysRange.addEventListener("change", renderMatrixTable);
+  if (matrixRegionFilter) matrixRegionFilter.addEventListener("change", renderMatrixTable);
+  if (matrixUnitPriceInput) matrixUnitPriceInput.addEventListener("input", renderMatrixTable);
+
+  if (matrixExportPdfBtn) matrixExportPdfBtn.addEventListener("click", handleMatrixExportPdf);
+  if (matrixExportExcelBtn) matrixExportExcelBtn.addEventListener("click", handleMatrixExportExcel);
+  if (matrixExportEmailBtn) matrixExportEmailBtn.addEventListener("click", handleMatrixExportEmail);
+  if (matrixSeedBtn) matrixSeedBtn.addEventListener("click", handleMatrixSeedData);
+
+  if (closeCellModalBtn) closeCellModalBtn.addEventListener("click", closeCellModal);
+  if (cancelCellModalBtn) cancelCellModalBtn.addEventListener("click", closeCellModal);
+  if (matrixCellForm) matrixCellForm.addEventListener("submit", handleSaveCellModal);
 
   // Fiyat Modalı
   quickChangePriceBtn.addEventListener("click", openPriceModal);
@@ -1149,6 +1199,9 @@ function initUsersListener() {
       renderCustomersTable();
       updateCustomerDatalist();
       if (adminCustomerCountBadge) adminCustomerCountBadge.textContent = allCustomers.length;
+      if (adminMatrixSection && !adminMatrixSection.classList.contains("hidden")) {
+        renderMatrixTable();
+      }
     });
   } catch (err) {
     console.error("Müşteriler dinlenemedi:", err);
@@ -1171,6 +1224,8 @@ async function handleCreateNewCustomer(e) {
   const kullaniciAdi = newCustUsername.value.trim().toLowerCase();
   const sifre = newCustPassword.value.trim();
   const telefon = newCustPhone.value.trim();
+  const bolge = (newCustRegion && newCustRegion.value.trim().toUpperCase()) || "VELİMEŞE";
+  const kesilecekPara = parseFloat(newCustDeduction && newCustDeduction.value) || 0;
 
   if (!adSoyad || !kullaniciAdi || !sifre) {
     showToast("Lütfen Ad Soyad, Kullanıcı Adı ve Şifre alanlarını doldurun.", "warning");
@@ -1190,12 +1245,15 @@ async function handleCreateNewCustomer(e) {
       email: kullaniciAdi.includes("@") ? kullaniciAdi : "",
       sifre,
       telefon,
+      bolge,
+      kesilecekPara,
       rol: "musteri",
       olusturulduAt: serverTimestamp()
     });
 
     showToast(`"${adSoyad}" başarıyla müşteri/üretici olarak eklendi!`, "success");
     newCustomerForm.reset();
+    renderMatrixTable();
   } catch (err) {
     showToast("Müşteri kaydedilirken hata: " + err.message, "error");
   }
@@ -1218,13 +1276,20 @@ function renderCustomersTable() {
     const totalHakedis = custLogs.reduce((acc, l) => acc + (Number(l.tutar) || (Number(l.miktar) * publicPrice)), 0);
     const totalPaid = custLogs.filter(l => l.odendi).reduce((acc, l) => acc + (Number(l.tutar) || (Number(l.miktar) * publicPrice)), 0);
     const remainingDebt = +(totalHakedis - totalPaid).toFixed(2);
+    const kesilecek = Number(cust.kesilecekPara) || 0;
 
     const tr = document.createElement("tr");
     tr.className = "hover:bg-slate-50 transition-colors";
     tr.innerHTML = `
       <td class="py-3 px-4 whitespace-nowrap">
-        <div class="font-bold text-slate-900">${escapeHtml(cust.adSoyad)}</div>
+        <div class="font-bold text-slate-900 flex items-center gap-1.5">
+          <span>${escapeHtml(cust.adSoyad)}</span>
+          <span class="text-[10px] font-black px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+            ${escapeHtml(cust.bolge || "VELİMEŞE")}
+          </span>
+        </div>
         ${cust.telefon ? `<div class="text-[11px] text-slate-400">${escapeHtml(cust.telefon)}</div>` : ""}
+        ${kesilecek > 0 ? `<div class="text-[10px] text-amber-700 font-bold">Avans/Kesinti: ${kesilecek.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</div>` : ""}
       </td>
       <td class="py-3 px-3 whitespace-nowrap">
         <div class="text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-lg inline-block">
@@ -1409,14 +1474,783 @@ async function markAllLogsPaidForCustomer() {
 function switchAdminTab(tab) {
   if (tab === "milk") {
     tabMilkBtn.className = "px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-emerald-600 text-white shadow-sm transition flex items-center gap-2";
+    if (tabMatrixBtn) tabMatrixBtn.className = "px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-2 shadow-2xs";
     tabCustomersBtn.className = "px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-2";
     adminMilkSection.classList.remove("hidden");
+    if (adminMatrixSection) adminMatrixSection.classList.add("hidden");
     adminCustomersSection.classList.add("hidden");
+  } else if (tab === "matrix") {
+    if (tabMatrixBtn) tabMatrixBtn.className = "px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-emerald-600 text-white shadow-sm transition flex items-center gap-2 shadow-2xs";
+    tabMilkBtn.className = "px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-2";
+    tabCustomersBtn.className = "px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-2";
+    adminMilkSection.classList.add("hidden");
+    if (adminMatrixSection) adminMatrixSection.classList.remove("hidden");
+    adminCustomersSection.classList.add("hidden");
+    renderMatrixTable();
   } else {
     tabCustomersBtn.className = "px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-indigo-600 text-white shadow-sm transition flex items-center gap-2";
     tabMilkBtn.className = "px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-2";
+    if (tabMatrixBtn) tabMatrixBtn.className = "px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-2 shadow-2xs";
     adminMilkSection.classList.add("hidden");
+    if (adminMatrixSection) adminMatrixSection.classList.add("hidden");
     adminCustomersSection.classList.remove("hidden");
+  }
+}
+
+// ============================================================================
+// 10.2. EXCEL ÇİZELGESİ & BÖLGE MATRİS YÖNETİMİ (PDF / EXCEL / E-POSTA ÇIKTILI)
+// ============================================================================
+const EXCEL_SEED_DATA = [
+  // VELİMEŞE
+  { bolge: "VELİMEŞE", adSoyad: "SİNAN SEZEN", kesilecekPara: 0, days: { "16": 19, "17": 34, "18": 27, "19": 27, "20": 27, "21": 21, "22": 28 } },
+  { bolge: "VELİMEŞE", adSoyad: "AHMET GÜNAY", kesilecekPara: 0, days: { "16": 57, "17": 44, "18": 55, "19": 35, "20": 52, "21": 32, "22": 57 } },
+  { bolge: "VELİMEŞE", adSoyad: "HÜSEYİN EREN", kesilecekPara: 0, days: { "19": 30, "22": 40 } },
+  { bolge: "VELİMEŞE", adSoyad: "FUAT VARLI", kesilecekPara: 0, days: {} },
+  { bolge: "VELİMEŞE", adSoyad: "MELİHA Y KUL", kesilecekPara: 0, days: { "16": 50, "17": 46, "18": 55, "19": 55, "20": 48, "21": 38, "22": 40 } },
+  { bolge: "VELİMEŞE", adSoyad: "SELO DARGIN", kesilecekPara: 0, days: { "16": 37, "17": 36, "18": 36, "19": 40, "20": 40, "21": 38, "22": 37 } },
+  { bolge: "VELİMEŞE", adSoyad: "AHMET DARGIN", kesilecekPara: 0, days: { "16": 14, "17": 19, "18": 15, "19": 14, "20": 19, "21": 10, "22": 19 } },
+  { bolge: "VELİMEŞE", adSoyad: "HAKAN TÜRKEL", kesilecekPara: 0, days: { "17": 235, "19": 130, "20": 102, "21": 172 } },
+  { bolge: "VELİMEŞE", adSoyad: "ZEKİ TAŞ", kesilecekPara: 0, days: {} },
+  { bolge: "VELİMEŞE", adSoyad: "HÜSEYİN KARA", kesilecekPara: 0, days: { "16": 8, "17": 15, "18": 15, "19": 16, "20": 15, "21": 20, "22": 12 } },
+  { bolge: "VELİMEŞE", adSoyad: "ÖZKAN GÖKÇE", kesilecekPara: 100000.0, days: { "16": 287, "17": 287, "18": 292, "19": 276, "20": 287, "21": 296, "22": 303 } },
+  { bolge: "VELİMEŞE", adSoyad: "ÖZCAN ŞEN", kesilecekPara: 0, days: { "17": 6, "18": 18, "19": 7, "20": 22, "21": 15, "22": 14 } },
+  { bolge: "VELİMEŞE", adSoyad: "FAHRİ KILIÇ", kesilecekPara: 0, days: { "16": 126, "17": 105, "18": 96, "19": 111, "20": 140, "21": 130, "22": 140 } },
+  { bolge: "VELİMEŞE", adSoyad: "NECDET AYAN", kesilecekPara: 0, days: { "16": 27, "17": 28, "18": 22, "19": 18, "20": 23, "21": 26, "22": 26 } },
+  { bolge: "VELİMEŞE", adSoyad: "ERHAN ŞAHİN", kesilecekPara: 0, days: { "16": 40, "17": 45, "18": 56, "19": 55, "20": 50, "21": 51, "22": 60 } },
+  { bolge: "VELİMEŞE", adSoyad: "YUSUF ORAL", kesilecekPara: 0, days: { "16": 51, "17": 70, "19": 44, "20": 70, "21": 31, "22": 68 } },
+  { bolge: "VELİMEŞE", adSoyad: "FERHAT ÇETİN", kesilecekPara: 0, days: { "16": 22, "17": 21, "18": 20, "19": 22, "20": 21, "21": 21, "22": 10 } },
+  { bolge: "VELİMEŞE", adSoyad: "NEBİ CAN ASUR", kesilecekPara: 0, days: { "17": 23, "18": 26, "19": 25, "20": 22, "21": 22, "22": 27 } },
+  { bolge: "VELİMEŞE", adSoyad: "İKRAM 23", kesilecekPara: 0, days: { "16": 36, "17": 37, "18": 36, "19": 35, "20": 36, "21": 31, "22": 33 } },
+  { bolge: "VELİMEŞE", adSoyad: "HÜSNÜ BOZKUŞ", kesilecekPara: 0, days: { "16": 130, "17": 134, "18": 131, "19": 130, "20": 124, "21": 130, "22": 134 } },
+  { bolge: "VELİMEŞE", adSoyad: "RECAİ AYDIN", kesilecekPara: 1300.0, days: { "16": 36, "17": 27, "18": 33, "19": 34, "20": 31, "21": 31, "22": 30 } },
+  { bolge: "VELİMEŞE", adSoyad: "GÖRKEM AYDIN", kesilecekPara: 0, days: { "16": 118, "17": 150, "18": 101, "19": 102, "20": 102, "21": 130, "22": 100 } },
+  { bolge: "VELİMEŞE", adSoyad: "TAYFUN", kesilecekPara: 0, days: { "16": 33, "17": 54, "18": 53, "19": 61, "20": 56, "21": 61, "22": 59 } },
+  { bolge: "VELİMEŞE", adSoyad: "CAVİT DAĞ", kesilecekPara: 0, days: {} },
+
+  // EFLAİM
+  { bolge: "EFLAİM", adSoyad: "YUNUS ÖZTÜRK", kesilecekPara: 0, days: { "16": 9, "18": 16, "19": 20, "20": 15, "21": 15, "22": 17 } },
+  { bolge: "EFLAİM", adSoyad: "MEHMET CEYLAN", kesilecekPara: 0, days: { "16": 7, "17": 13, "18": 15, "19": 9, "20": 21, "21": 17, "22": 17 } },
+  { bolge: "EFLAİM", adSoyad: "YALÇIN AYDIN", kesilecekPara: 0, days: { "16": 18, "17": 20, "18": 10, "19": 19, "20": 19, "21": 19, "22": 20 } },
+
+  // KAPAKLI
+  { bolge: "KAPAKLI", adSoyad: "SERDAR ÇIRA", kesilecekPara: 0, days: { "16": 122, "17": 125, "18": 116, "19": 112, "20": 120, "21": 125, "22": 113 } },
+  { bolge: "KAPAKLI", adSoyad: "KARADENİZ ÇİFTLİĞİ", kesilecekPara: 0, days: { "16": 146, "17": 133, "18": 133, "19": 126, "20": 142, "21": 130, "22": 134 } },
+  { bolge: "KAPAKLI", adSoyad: "SERHAN KAYA", kesilecekPara: 0, days: { "16": 24, "17": 38, "18": 30, "19": 30, "20": 64, "21": 57 } },
+
+  // SÜTÇÜLER
+  { bolge: "SÜTÇÜLER", adSoyad: "GÜNEŞ", kesilecekPara: 0, days: { "16": 1543, "17": 1518, "18": 1510, "19": 1426, "20": 1519, "21": 1525, "22": 1396 } },
+  { bolge: "SÜTÇÜLER", adSoyad: "TUTKU ÜNAL", kesilecekPara: 0, days: {} },
+  { bolge: "SÜTÇÜLER", adSoyad: "AYHAN K KISA", kesilecekPara: 0, days: { "16": 290 } },
+  { bolge: "SÜTÇÜLER", adSoyad: "YASİN YAKUT", kesilecekPara: 0, days: {} },
+  { bolge: "SÜTÇÜLER", adSoyad: "GÖKSEL BOZDAĞ", kesilecekPara: 0, days: {} },
+  { bolge: "SÜTÇÜLER", adSoyad: "SUAT", kesilecekPara: 0, days: {} },
+
+  // DİĞER
+  { bolge: "DİĞER", adSoyad: "YAŞAR CESUR", kesilecekPara: 0, days: { "16": 290 } },
+  { bolge: "DİĞER", adSoyad: "METİN", kesilecekPara: 0, days: {} },
+  { bolge: "DİĞER", adSoyad: "VAHİT K. KISA", kesilecekPara: 1300.0, days: { "16": 104 } },
+  { bolge: "DİĞER", adSoyad: "ZÜBEYDE KARTAL", kesilecekPara: 0, days: { "16": 166 } },
+  { bolge: "DİĞER", adSoyad: "HÜSEYİN BAKIN", kesilecekPara: 0, days: { "16": 347 } },
+  { bolge: "DİĞER", adSoyad: "ONUR KARAKUŞ", kesilecekPara: 0, days: {} }
+];
+
+const EXCEL_SEED_KANTAR = {
+  "16": 2651,
+  "17": 2385,
+  "18": 2354,
+  "19": 2768,
+  "20": 2598,
+  "21": 2533
+};
+
+let activeCellEdit = null; // { type: 'milk' | 'deduction' | 'kantar', cust, dateStr, currentVal }
+
+function getMatrixData() {
+  const yyyy = matrixYearSelect ? matrixYearSelect.value : "2026";
+  const mm = matrixMonthSelect ? matrixMonthSelect.value : "10";
+  const rangeType = matrixDaysRange ? matrixDaysRange.value : "16-31";
+  const regionFilter = matrixRegionFilter ? matrixRegionFilter.value : "all";
+  const unitPrice = parseFloat(matrixUnitPriceInput ? matrixUnitPriceInput.value : 24.30) || 24.30;
+
+  // Gün listesini oluştur
+  let startDay = 16;
+  let endDay = 31;
+  if (rangeType === "01-15") {
+    startDay = 1;
+    endDay = 15;
+  } else if (rangeType === "01-31") {
+    startDay = 1;
+    endDay = 31;
+  }
+
+  const columns = [];
+  for (let d = startDay; d <= endDay; d++) {
+    const dayStr = String(d).padStart(2, "0");
+    const fullDate = `${yyyy}-${mm}-${dayStr}`;
+    columns.push({
+      dayStr,
+      fullDate,
+      displayDate: `${dayStr}.${mm}.${yyyy}`
+    });
+  }
+
+  // Üreticileri belirle (allCustomers varsa kullan, yoksa SEED listesini temel al)
+  let baseCustomers = [];
+  if (allCustomers && allCustomers.length > 0) {
+    baseCustomers = allCustomers.map(c => ({
+      id: c.id,
+      adSoyad: c.adSoyad,
+      kullaniciAdi: c.kullaniciAdi,
+      bolge: (c.bolge || "VELİMEŞE").toUpperCase(),
+      kesilecekPara: Number(c.kesilecekPara) || 0
+    }));
+  } else {
+    baseCustomers = EXCEL_SEED_DATA.map((s, idx) => ({
+      id: "seed_" + idx,
+      adSoyad: s.adSoyad,
+      kullaniciAdi: s.adSoyad.toLowerCase().replace(/[^a-z0-9]/g, "_"),
+      bolge: s.bolge.toUpperCase(),
+      kesilecekPara: s.kesilecekPara || 0,
+      seedDays: s.days
+    }));
+  }
+
+  // Bölge filtresi uygula
+  if (regionFilter !== "all") {
+    baseCustomers = baseCustomers.filter(c => c.bolge === regionFilter.toUpperCase());
+  }
+
+  // Bölgelere göre grupla
+  const REGION_ORDER = ["VELİMEŞE", "EFLAİM", "KAPAKLI", "SÜTÇÜLER", "DİĞER"];
+  const grouped = {};
+  REGION_ORDER.forEach(r => { grouped[r] = []; });
+
+  baseCustomers.forEach(cust => {
+    const b = cust.bolge || "DİĞER";
+    if (!grouped[b]) grouped[b] = [];
+    grouped[b].push(cust);
+  });
+
+  // Her üretici ve gün için değerleri topla
+  const rows = [];
+  const dayColumnTotals = {};
+  columns.forEach(col => { dayColumnTotals[col.fullDate] = 0; });
+
+  let grandTotalMilk = 0;
+  let grandTotalCarpim = 0;
+  let grandTotalDeductions = 0;
+  let grandTotalPayable = 0;
+
+  REGION_ORDER.forEach(regName => {
+    const custs = grouped[regName];
+    if (!custs || custs.length === 0) return;
+
+    custs.forEach(cust => {
+      const dayValues = {};
+      let rowTotalMilk = 0;
+
+      columns.forEach(col => {
+        // 1. allCustomerLogs kontrol et
+        const log = allCustomerLogs.find(l => 
+          l.tarih === col.fullDate && 
+          ((l.musteriKullaniciAdi && l.musteriKullaniciAdi === cust.kullaniciAdi) ||
+           (l.adSoyad && l.adSoyad.toLowerCase() === cust.adSoyad.toLowerCase()))
+        );
+
+        let val = 0;
+        if (log && log.miktar !== undefined) {
+          val = Number(log.miktar) || 0;
+        } else {
+          // 2. localStorage kontrol et
+          const localKey = `matrix_milk_${cust.kullaniciAdi}_${col.fullDate}`;
+          const localSaved = localStorage.getItem(localKey);
+          if (localSaved !== null) {
+            val = Number(localSaved) || 0;
+          } else if (cust.seedDays && cust.seedDays[col.dayStr] !== undefined) {
+            val = Number(cust.seedDays[col.dayStr]) || 0;
+          } else {
+            // Seed datadan isim eşleştir
+            const seedMatch = EXCEL_SEED_DATA.find(s => s.adSoyad.toLowerCase() === cust.adSoyad.toLowerCase());
+            if (seedMatch && seedMatch.days && seedMatch.days[col.dayStr] !== undefined) {
+              val = Number(seedMatch.days[col.dayStr]) || 0;
+            }
+          }
+        }
+
+        dayValues[col.fullDate] = val;
+        rowTotalMilk += val;
+        dayColumnTotals[col.fullDate] += val;
+      });
+
+      // Kesilecek para
+      let deduction = Number(cust.kesilecekPara) || 0;
+      const localDeduct = localStorage.getItem(`matrix_deduct_${cust.kullaniciAdi}`);
+      if (localDeduct !== null) deduction = Number(localDeduct) || 0;
+
+      const carpim = +(rowTotalMilk * unitPrice).toFixed(2);
+      const payable = +(carpim - deduction).toFixed(2);
+
+      grandTotalMilk += rowTotalMilk;
+      grandTotalCarpim += carpim;
+      grandTotalDeductions += deduction;
+      grandTotalPayable += payable;
+
+      rows.push({
+        cust,
+        bolge: regName,
+        dayValues,
+        rowTotalMilk,
+        deduction,
+        carpim,
+        payable
+      });
+    });
+  });
+
+  // Kantar Değerleri
+  const dayKantarTotals = {};
+  let grandTotalKantar = 0;
+
+  columns.forEach(col => {
+    let kantarVal = 0;
+    const rec = allRecords.find(r => r.tarih === col.fullDate);
+    if (rec && rec.fabrikaSut !== undefined) {
+      kantarVal = Number(rec.fabrikaSut) || 0;
+    } else {
+      const localKantar = localStorage.getItem(`matrix_kantar_${col.fullDate}`);
+      if (localKantar !== null) {
+        kantarVal = Number(localKantar) || 0;
+      } else if (EXCEL_SEED_KANTAR[col.dayStr] !== undefined) {
+        kantarVal = Number(EXCEL_SEED_KANTAR[col.dayStr]) || 0;
+      }
+    }
+    dayKantarTotals[col.fullDate] = kantarVal;
+    grandTotalKantar += kantarVal;
+  });
+
+  const factoryIncome = +(grandTotalKantar * (factoryPrice || 28.0)).toFixed(2);
+  const netProfit = +(factoryIncome - grandTotalPayable).toFixed(2);
+
+  return {
+    columns,
+    rows,
+    grouped,
+    regionOrder: REGION_ORDER,
+    dayColumnTotals,
+    dayKantarTotals,
+    unitPrice,
+    grandTotalMilk,
+    grandTotalKantar,
+    factoryIncome,
+    grandTotalCarpim,
+    grandTotalDeductions,
+    grandTotalPayable,
+    netProfit
+  };
+}
+
+function renderMatrixTable() {
+  if (!matrixTable) return;
+  const data = getMatrixData();
+
+  if (matrixTableTitle) {
+    const monthName = matrixMonthSelect ? matrixMonthSelect.options[matrixMonthSelect.selectedIndex].text : "Ekim";
+    const yyyy = matrixYearSelect ? matrixYearSelect.value : "2026";
+    matrixTableTitle.innerHTML = `<span>📋 Çiftlik Süt Toplama ve Üretici Hakediş Çizelgesi</span> <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold ml-2">${monthName} ${yyyy}</span>`;
+  }
+
+  if (matrixTableSubtitle) {
+    const startD = data.columns[0]?.dayStr || "16";
+    const endD = data.columns[data.columns.length - 1]?.dayStr || "31";
+    matrixTableSubtitle.textContent = `Dönem: ${startD}.${matrixMonthSelect?.value || '10'}.${matrixYearSelect?.value || '2026'} - ${endD}.${matrixMonthSelect?.value || '10'}.${matrixYearSelect?.value || '2026'} • Alış Birim Fiyatı: ${data.unitPrice.toFixed(2)} ₺/LT`;
+  }
+
+  // Kartları güncelle
+  if (matrixBoxFactoryIncome) matrixBoxFactoryIncome.textContent = `${data.factoryIncome.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`;
+  if (matrixBoxPublicExpense) matrixBoxPublicExpense.textContent = `${data.grandTotalPayable.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`;
+  if (matrixBoxNetProfit) {
+    matrixBoxNetProfit.textContent = `${data.netProfit.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`;
+    matrixBoxNetProfit.className = `text-xl sm:text-2xl font-black block mt-1 ${data.netProfit < 0 ? 'text-rose-600' : 'text-slate-900'}`;
+  }
+  if (matrixBoxTotalDeductions) matrixBoxTotalDeductions.textContent = `${data.grandTotalDeductions.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`;
+
+  // HTML Tablo Üretimi
+  let html = `<thead><tr class="border-b border-slate-400">`;
+  html += `<th class="sticky left-0 z-20 bg-amber-300 text-slate-900 font-black text-xs py-2 px-3 border border-slate-400 min-w-[180px] text-left uppercase shadow-xs">AD SOYAD</th>`;
+
+  data.columns.forEach(col => {
+    html += `<th class="bg-amber-300 text-slate-900 font-extrabold text-[11px] py-1.5 px-1 border border-slate-400 min-w-[50px] whitespace-nowrap text-center">${col.displayDate}</th>`;
+  });
+
+  html += `<th class="bg-slate-300 text-slate-900 font-black text-xs py-2 px-2 border border-slate-400 min-w-[75px] text-center">TOPLAM</th>`;
+  html += `<th class="bg-white text-rose-700 font-black text-xs py-2 px-2 border border-slate-400 min-w-[95px] text-center">KESİLECEK PARA</th>`;
+  html += `<th class="bg-slate-200 text-slate-900 font-black text-xs py-2 px-2 border border-slate-400 min-w-[95px] text-right">ÇARPIM</th>`;
+  html += `<th class="bg-amber-300 text-slate-900 font-black text-xs py-2 px-2 border border-slate-400 min-w-[105px] text-right">ÖDENECEK PARA</th>`;
+  html += `</tr></thead><tbody>`;
+
+  const totalColSpan = data.columns.length + 5;
+  let currentBolge = null;
+
+  data.rows.forEach(r => {
+    // Bölge Başlığı
+    if (r.bolge !== currentBolge) {
+      currentBolge = r.bolge;
+      html += `
+        <tr class="bg-slate-200 text-slate-900 font-black text-xs border border-slate-400">
+          <td colspan="${totalColSpan}" class="py-2 px-4 text-left uppercase tracking-wider bg-slate-200 border border-slate-400 font-black text-slate-900">
+            📍 ${escapeHtml(currentBolge)}
+          </td>
+        </tr>
+      `;
+    }
+
+    html += `<tr class="hover:bg-amber-50/50 transition-colors border-b border-slate-200">`;
+    // Üretici Adı
+    html += `
+      <td class="sticky left-0 z-10 bg-white font-bold text-slate-900 border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap shadow-xs">
+        <span class="inline-block bg-amber-300 text-slate-900 px-1.5 py-0.5 rounded text-[11px] font-black mr-1.5">${escapeHtml(r.cust.adSoyad)}</span>
+      </td>
+    `;
+
+    // Günler
+    data.columns.forEach(col => {
+      const val = r.dayValues[col.fullDate] || 0;
+      html += `
+        <td 
+          class="matrix-cell border border-slate-300 p-1 text-center font-bold text-slate-800 cursor-pointer hover:bg-emerald-100 active:scale-95 transition"
+          data-type="milk"
+          data-cust-user="${r.cust.kullaniciAdi}"
+          data-cust-name="${escapeHtml(r.cust.adSoyad)}"
+          data-date="${col.fullDate}"
+          data-day="${col.dayStr}"
+          data-val="${val}"
+          title="${escapeHtml(r.cust.adSoyad)} - ${col.displayDate} (Tıkla ve düzenle)"
+        >
+          ${val > 0 ? val : ""}
+        </td>
+      `;
+    });
+
+    // Toplam
+    html += `<td class="bg-slate-200 font-black text-slate-900 border border-slate-300 py-1.5 px-2 text-center text-xs">${r.rowTotalMilk > 0 ? r.rowTotalMilk : "0"}</td>`;
+
+    // Kesilecek Para
+    html += `
+      <td 
+        class="matrix-cell border border-slate-300 py-1.5 px-2 text-right font-black text-rose-700 cursor-pointer hover:bg-rose-50 active:scale-95 transition text-xs"
+        data-type="deduction"
+        data-cust-user="${r.cust.kullaniciAdi}"
+        data-cust-name="${escapeHtml(r.cust.adSoyad)}"
+        data-val="${r.deduction}"
+        title="Kesilecek parayı (avans) değiştirmek için tıkla"
+      >
+        ${r.deduction > 0 ? r.deduction.toLocaleString("tr-TR", { minimumFractionDigits: 2 }) : ""}
+      </td>
+    `;
+
+    // Çarpım
+    html += `<td class="bg-slate-100 font-black text-slate-900 border border-slate-300 py-1.5 px-2 text-right text-xs">${r.carpim.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL</td>`;
+
+    // Ödenecek Para
+    const isNegative = r.payable < 0;
+    html += `<td class="border border-slate-300 py-1.5 px-2 text-right text-xs font-black ${isNegative ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-slate-900'}">${r.payable.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL</td>`;
+
+    html += `</tr>`;
+  });
+
+  // ========================================================================
+  // ALT TOPLAM SATIRLARI (TOPLAM SÜT & KANTAR)
+  // ========================================================================
+  // 1. TOPLAM SÜT (Kırmızı Zemin)
+  html += `
+    <tr class="bg-red-600 text-white font-black text-xs border border-red-700">
+      <td class="sticky left-0 z-10 bg-red-600 text-white px-3 py-2 text-left uppercase font-black border border-red-700 shadow-xs">
+        TOPLAM SÜT
+      </td>
+  `;
+  data.columns.forEach(col => {
+    const dayTot = data.dayColumnTotals[col.fullDate] || 0;
+    html += `<td class="border border-red-700 p-1 text-center font-black">${dayTot > 0 ? dayTot : "0"}</td>`;
+  });
+  html += `
+      <td class="bg-red-700 text-white font-black py-2 px-2 text-center border border-red-800">${data.grandTotalMilk.toLocaleString("tr-TR")} KG</td>
+      <td class="bg-red-700 text-white font-black py-2 px-2 text-right border border-red-800">${data.grandTotalDeductions > 0 ? data.grandTotalDeductions.toLocaleString("tr-TR", { minimumFractionDigits: 2 }) : "0.00"} TL</td>
+      <td class="bg-red-700 text-white font-black py-2 px-2 text-right border border-red-800">${data.grandTotalCarpim.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL</td>
+      <td class="bg-red-800 text-white font-black py-2 px-2 text-right border border-red-900">${data.grandTotalPayable.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL</td>
+    </tr>
+  `;
+
+  // 2. KANTAR (Sarı Zemin)
+  html += `
+    <tr class="bg-yellow-400 text-slate-900 font-black text-xs border border-yellow-500">
+      <td class="sticky left-0 z-10 bg-yellow-400 text-slate-900 px-3 py-2 text-left uppercase font-black border border-yellow-500 shadow-xs">
+        KANTAR
+      </td>
+  `;
+  data.columns.forEach(col => {
+    const kantarVal = data.dayKantarTotals[col.fullDate] || 0;
+    html += `
+      <td 
+        class="matrix-cell border border-yellow-500 p-1 text-center font-black cursor-pointer hover:bg-yellow-300 active:scale-95 transition"
+        data-type="kantar"
+        data-date="${col.fullDate}"
+        data-day="${col.dayStr}"
+        data-val="${kantarVal}"
+        title="Kantar değerini düzenlemek için tıkla"
+      >
+        ${kantarVal > 0 ? kantarVal : ""}
+      </td>
+    `;
+  });
+  html += `
+      <td class="bg-yellow-500 text-slate-900 font-black py-2 px-2 text-center border border-yellow-600">${data.grandTotalKantar.toLocaleString("tr-TR")} KG</td>
+      <td colspan="3" class="bg-yellow-400 border border-yellow-500 text-right pr-3 font-extrabold text-[11px] text-slate-800">
+        Fabrika Geliri: ${data.factoryIncome.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺
+      </td>
+    </tr>
+  `;
+
+  html += `</tbody>`;
+  matrixTable.innerHTML = html;
+
+  // Hücre tıklama dinleyicilerini bağla
+  matrixTable.querySelectorAll(".matrix-cell").forEach(cell => {
+    cell.addEventListener("click", () => {
+      const type = cell.dataset.type;
+      const custUser = cell.dataset.custUser;
+      const custName = cell.dataset.custName;
+      const dateStr = cell.dataset.date;
+      const currentVal = cell.dataset.val || "0";
+      openCellModal(type, { kullaniciAdi: custUser, adSoyad: custName }, dateStr, currentVal);
+    });
+  });
+}
+
+function openCellModal(type, cust, dateStr, currentVal) {
+  activeCellEdit = { type, cust, dateStr, currentVal };
+  if (!matrixCellModal) return;
+
+  if (type === "milk") {
+    cellModalTitle.textContent = `${cust.adSoyad} - Süt Miktarı`;
+    cellModalLabel.textContent = `${formatDisplayDate(dateStr)} Tarihindeki Süt (Litre/KG):`;
+    cellModalInput.value = currentVal > 0 ? currentVal : "";
+    cellModalHint.textContent = "Örn: 27 (Boşaltmak için 0 girin)";
+  } else if (type === "deduction") {
+    cellModalTitle.textContent = `${cust.adSoyad} - Kesilecek Para`;
+    cellModalLabel.textContent = "Avans / Yem / Masraf Kesintisi (₺):";
+    cellModalInput.value = currentVal > 0 ? currentVal : "";
+    cellModalHint.textContent = "Örn: 1300.00";
+  } else if (type === "kantar") {
+    cellModalTitle.textContent = "Kantar Süt Miktarı";
+    cellModalLabel.textContent = `${formatDisplayDate(dateStr)} Tarihli Kantar Sütü (Litre/KG):`;
+    cellModalInput.value = currentVal > 0 ? currentVal : "";
+    cellModalHint.textContent = "Örn: 2651";
+  }
+
+  matrixCellModal.classList.remove("hidden");
+  setTimeout(() => cellModalInput.focus(), 50);
+}
+
+function closeCellModal() {
+  activeCellEdit = null;
+  if (matrixCellModal) matrixCellModal.classList.add("hidden");
+}
+
+async function handleSaveCellModal(e) {
+  e.preventDefault();
+  if (!activeCellEdit) return;
+
+  const newVal = parseFloat(cellModalInput.value) || 0;
+  const { type, cust, dateStr } = activeCellEdit;
+
+  try {
+    if (type === "milk") {
+      localStorage.setItem(`matrix_milk_${cust.kullaniciAdi}_${dateStr}`, newVal);
+
+      // Firestore'a da kaydet / güncelle
+      const existingLog = allCustomerLogs.find(l => 
+        l.tarih === dateStr && 
+        (l.musteriKullaniciAdi === cust.kullaniciAdi || l.adSoyad.toLowerCase() === cust.adSoyad.toLowerCase())
+      );
+
+      const tutar = +(newVal * publicPrice).toFixed(2);
+      if (existingLog) {
+        await setDoc(doc(db, COL_CUSTOMER_LOGS, existingLog.id), {
+          miktar: newVal,
+          tutar: tutar,
+          guncellendiAt: serverTimestamp()
+        }, { merge: true });
+      } else if (newVal > 0) {
+        await addDoc(collection(db, COL_CUSTOMER_LOGS), {
+          musteriKullaniciAdi: cust.kullaniciAdi,
+          adSoyad: cust.adSoyad,
+          tarih: dateStr,
+          miktar: newVal,
+          birimFiyat: publicPrice,
+          tutar: tutar,
+          odendi: false,
+          not: "Excel çizelgesi üzerinden girildi",
+          olusturulduAt: serverTimestamp()
+        });
+      }
+
+      showToast(`${cust.adSoyad} için süt miktarı ${newVal} LT olarak kaydedildi!`, "success");
+
+    } else if (type === "deduction") {
+      localStorage.setItem(`matrix_deduct_${cust.kullaniciAdi}`, newVal);
+
+      const matchedCust = allCustomers.find(c => c.kullaniciAdi === cust.kullaniciAdi || c.adSoyad.toLowerCase() === cust.adSoyad.toLowerCase());
+      if (matchedCust) {
+        await setDoc(doc(db, COL_USERS, matchedCust.id), {
+          kesilecekPara: newVal
+        }, { merge: true });
+      }
+
+      showToast(`${cust.adSoyad} için kesilecek para ${newVal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺ olarak güncellendi!`, "success");
+
+    } else if (type === "kantar") {
+      localStorage.setItem(`matrix_kantar_${dateStr}`, newVal);
+
+      const existingRecord = allRecords.find(r => r.tarih === dateStr);
+      if (existingRecord) {
+        await setDoc(doc(db, COL_RECORDS, existingRecord.id), {
+          fabrikaSut: newVal,
+          fabrikaGelir: +(newVal * (existingRecord.fabrikaFiyat || factoryPrice)).toFixed(2)
+        }, { merge: true });
+      }
+
+      showToast(`${formatDisplayDate(dateStr)} kantar sütü ${newVal} LT olarak kaydedildi!`, "success");
+    }
+
+    closeCellModal();
+    renderMatrixTable();
+  } catch (err) {
+    showToast("Kayıt güncellenirken hata: " + err.message, "error");
+    closeCellModal();
+    renderMatrixTable();
+  }
+}
+
+// PDF ve Yazdırma Fonksiyonu (Landscape A4)
+function handleMatrixExportPdf() {
+  const data = getMatrixData();
+  if (!excelMatrixPrintArea) return;
+
+  const monthName = matrixMonthSelect ? matrixMonthSelect.options[matrixMonthSelect.selectedIndex].text : "Ekim";
+  const yyyy = matrixYearSelect ? matrixYearSelect.value : "2026";
+  const startD = data.columns[0]?.dayStr || "16";
+  const endD = data.columns[data.columns.length - 1]?.dayStr || "31";
+
+  let printHtml = `
+    <div style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; width: 100%; color: #0f172a; padding: 5px;">
+      
+      <!-- Başlık & Çiftlik Bilgisi -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 10px;">
+        <div>
+          <h1 style="font-size: 18px; font-weight: 900; margin: 0; text-transform: uppercase;">ÇİFTLİK SÜT TOPLAMA & ÜRETİCİ HAKEDİŞ ÇİZELGESİ</h1>
+          <p style="font-size: 11px; color: #475569; margin: 2px 0 0 0;">
+            Dönem: <strong>${startD}.${matrixMonthSelect?.value || '10'}.${yyyy} - ${endD}.${matrixMonthSelect?.value || '10'}.${yyyy}</strong> &bull; Süt Alış Birim Fiyatı: <strong>${data.unitPrice.toFixed(2)} ₺/LT</strong>
+          </p>
+        </div>
+        <div style="text-align: right; font-size: 10px; color: #64748b;">
+          <div>Rapor Tarihi: ${new Date().toLocaleDateString("tr-TR")}</div>
+          <div style="font-weight: 800; color: #166534;">Çiftlik Süt Yönetim Portalı</div>
+        </div>
+      </div>
+
+      <!-- Tablo Klonu -->
+      <div style="width: 100%; overflow: visible;">
+        ${matrixTable.outerHTML}
+      </div>
+
+      <!-- Alt Finansal Özet Kutuları -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px;">
+        <div style="background: #ffe4e6; border: 1px solid #fda4af; padding: 8px; border-radius: 8px; text-align: center;">
+          <div style="font-size: 9px; font-weight: 800; color: #9f1239; text-transform: uppercase;">GELEN PARA (FABRİKA GELİRİ)</div>
+          <div style="font-size: 14px; font-weight: 900; color: #881337; margin-top: 2px;">${data.factoryIncome.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</div>
+        </div>
+        <div style="background: #ffe4e6; border: 1px solid #fda4af; padding: 8px; border-radius: 8px; text-align: center;">
+          <div style="font-size: 9px; font-weight: 800; color: #9f1239; text-transform: uppercase;">ÖDENEN / ÖDENECEK PARA</div>
+          <div style="font-size: 14px; font-weight: 900; color: #881337; margin-top: 2px;">${data.grandTotalPayable.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</div>
+        </div>
+        <div style="background: #ffffff; border: 2px solid #cbd5e1; padding: 8px; border-radius: 8px; text-align: center;">
+          <div style="font-size: 9px; font-weight: 800; color: #475569; text-transform: uppercase;">KALAN KÂR / BAKİYE</div>
+          <div style="font-size: 14px; font-weight: 900; color: #0f172a; margin-top: 2px;">${data.netProfit.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</div>
+        </div>
+        <div style="background: #fef3c7; border: 1px solid #fcd34d; padding: 8px; border-radius: 8px; text-align: center;">
+          <div style="font-size: 9px; font-weight: 800; color: #92400e; text-transform: uppercase;">KESİLECEK PARA TOPLAMI</div>
+          <div style="font-size: 14px; font-weight: 900; color: #78350f; margin-top: 2px;">${data.grandTotalDeductions.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</div>
+        </div>
+      </div>
+
+    </div>
+  `;
+
+  excelMatrixPrintArea.innerHTML = printHtml;
+  window.print();
+}
+
+// Excel (.csv) İndirme Fonksiyonu (UTF-8 BOM ile Excel'de Sorunsuz Açılır)
+function handleMatrixExportExcel() {
+  const data = getMatrixData();
+  const yyyy = matrixYearSelect ? matrixYearSelect.value : "2026";
+  const mm = matrixMonthSelect ? matrixMonthSelect.value : "10";
+
+  let csv = "";
+  // Başlık satırı
+  const headers = ["BÖLGE", "AD SOYAD"];
+  data.columns.forEach(col => headers.push(col.displayDate));
+  headers.push("TOPLAM (KG)", "KESİLECEK PARA (TL)", "ÇARPIM (TL)", "ÖDENECEK PARA (TL)");
+  csv += headers.map(h => `"${h}"`).join(";") + "\r\n";
+
+  // Veri satırları
+  let currentBolge = null;
+  data.rows.forEach(r => {
+    if (r.bolge !== currentBolge) {
+      currentBolge = r.bolge;
+      csv += `"[BÖLGE: ${currentBolge}]"` + ";".repeat(headers.length - 1) + "\r\n";
+    }
+
+    const rowItems = [
+      `"${r.bolge}"`,
+      `"${r.cust.adSoyad}"`
+    ];
+
+    data.columns.forEach(col => {
+      const val = r.dayValues[col.fullDate] || 0;
+      rowItems.push(val > 0 ? val : "");
+    });
+
+    rowItems.push(
+      r.rowTotalMilk,
+      r.deduction.toFixed(2).replace(".", ","),
+      r.carpim.toFixed(2).replace(".", ","),
+      r.payable.toFixed(2).replace(".", ",")
+    );
+
+    csv += rowItems.join(";") + "\r\n";
+  });
+
+  // Toplam Süt satırı
+  const milkTotRow = ['"TOPLAM SÜT"', '""'];
+  data.columns.forEach(col => {
+    milkTotRow.push(data.dayColumnTotals[col.fullDate] || 0);
+  });
+  milkTotRow.push(
+    data.grandTotalMilk,
+    data.grandTotalDeductions.toFixed(2).replace(".", ","),
+    data.grandTotalCarpim.toFixed(2).replace(".", ","),
+    data.grandTotalPayable.toFixed(2).replace(".", ",")
+  );
+  csv += milkTotRow.join(";") + "\r\n";
+
+  // Kantar Satırı
+  const kantarRow = ['"KANTAR"', '""'];
+  data.columns.forEach(col => {
+    kantarRow.push(data.dayKantarTotals[col.fullDate] || 0);
+  });
+  kantarRow.push(data.grandTotalKantar, '""', '""', `"${data.factoryIncome.toFixed(2).replace(".", ",")} TL (Fabrika Geliri)"`);
+  csv += kantarRow.join(";") + "\r\n";
+
+  // Özet Satırları
+  csv += "\r\n";
+  csv += `"GELEN PARA (FABRİKA GELİRİ)";"${data.factoryIncome.toFixed(2).replace(".", ",")} TL"\r\n`;
+  csv += `"ÖDENEN / ÖDENECEK PARA";"${data.grandTotalPayable.toFixed(2).replace(".", ",")} TL"\r\n`;
+  csv += `"KALAN KÂR / BAKİYE";"${data.netProfit.toFixed(2).replace(".", ",")} TL"\r\n`;
+  csv += `"KESİLECEK PARA TOPLAMI";"${data.grandTotalDeductions.toFixed(2).replace(".", ",")} TL"\r\n`;
+
+  // UTF-8 BOM ekle ki Excel Türkçe karakterleri doğru göstersin
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Ciftlik_Sut_Cizelgesi_${mm}_${yyyy}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  showToast("Excel dosyası başarıyla indirildi!", "success");
+}
+
+function handleMatrixExportEmail() {
+  openEmailModal();
+  const matrixRadio = document.querySelector('input[name="reportFrequency"][value="matrix"]');
+  if (matrixRadio) {
+    matrixRadio.checked = true;
+    updateReportPreview();
+  }
+}
+
+// Excel Fotoğrafındaki Tüm Üreticileri Otomatik Yükleme Sihirbazı
+async function handleMatrixSeedData() {
+  if (!confirm("Excel tablosundaki tüm üreticileri (Velimeşe, Kapaklı, Eflaim, Sütçüler) ve örnek süt kayıtlarını sisteme aktarmak istiyor musunuz?")) {
+    return;
+  }
+
+  showToast("Excel üreticileri ve verileri yükleniyor...", "info");
+
+  try {
+    for (const item of EXCEL_SEED_DATA) {
+      const username = item.adSoyad.toLowerCase().replace(/[^a-z0-9]/g, "_");
+      const existing = allCustomers.find(c => c.kullaniciAdi === username || c.adSoyad.toLowerCase() === item.adSoyad.toLowerCase());
+
+      let custId = existing ? existing.id : null;
+      if (!existing) {
+        const docRef = await addDoc(collection(db, COL_USERS), {
+          adSoyad: item.adSoyad,
+          kullaniciAdi: username,
+          email: `${username}@ciftlik.com`,
+          sifre: "123",
+          telefon: "",
+          bolge: item.bolge,
+          kesilecekPara: item.kesilecekPara || 0,
+          rol: "musteri",
+          olusturulduAt: serverTimestamp()
+        });
+        custId = docRef.id;
+      } else {
+        await setDoc(doc(db, COL_USERS, existing.id), {
+          bolge: item.bolge,
+          kesilecekPara: item.kesilecekPara || 0
+        }, { merge: true });
+      }
+
+      // Günlük süt kayıtlarını işle (16-22 Ekim)
+      if (item.days) {
+        for (const [dayNum, amount] of Object.entries(item.days)) {
+          const dateStr = `2026-10-${dayNum.padStart(2, "0")}`;
+          localStorage.setItem(`matrix_milk_${username}_${dateStr}`, amount);
+
+          // log olarak ekle
+          const existingLog = allCustomerLogs.find(l => l.tarih === dateStr && l.musteriKullaniciAdi === username);
+          if (!existingLog && amount > 0) {
+            await addDoc(collection(db, COL_CUSTOMER_LOGS), {
+              musteriKullaniciAdi: username,
+              adSoyad: item.adSoyad,
+              tarih: dateStr,
+              miktar: amount,
+              birimFiyat: 24.30,
+              tutar: +(amount * 24.30).toFixed(2),
+              odendi: false,
+              olusturulduAt: serverTimestamp()
+            });
+          }
+        }
+      }
+    }
+
+    // Kantar değerlerini kaydet
+    for (const [dayNum, kantarVal] of Object.entries(EXCEL_SEED_KANTAR)) {
+      const dateStr = `2026-10-${dayNum.padStart(2, "0")}`;
+      localStorage.setItem(`matrix_kantar_${dateStr}`, kantarVal);
+    }
+
+    showToast("Excel üreticileri ve çizelge verileri başarıyla sisteme aktarıldı!", "success");
+    renderMatrixTable();
+  } catch (err) {
+    showToast("Veri aktarımı sırasında hata: " + err.message, "error");
+    renderMatrixTable();
   }
 }
 
@@ -1530,7 +2364,7 @@ function closeEmailModal() {
 }
 
 function updateReportPreview() {
-  const isMonthly = document.querySelector('input[name="reportFrequency"]:checked').value === "monthly";
+  const freq = document.querySelector('input[name="reportFrequency"]:checked')?.value || "daily";
   const now = new Date();
   const yyyy = now.getFullYear();
   const mm = String(now.getMonth() + 1).padStart(2, "0");
@@ -1538,6 +2372,43 @@ function updateReportPreview() {
   const todayStr = `${yyyy}-${mm}-${dd}`;
   const currentMonthStr = `${yyyy}-${mm}`;
 
+  if (freq === "matrix") {
+    const data = getMatrixData();
+    previewReportTitle.textContent = `Aylık Excel Çizelgesi Tablosu`;
+    previewReportDate.textContent = `${now.toLocaleDateString("tr-TR", { month: "long", year: "numeric" })}`;
+
+    previewTotalMilk.textContent = `${data.grandTotalMilk.toLocaleString("tr-TR")} LT`;
+    previewFactoryMoney.textContent = `${data.factoryIncome.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`;
+    previewPublicMoney.textContent = `${data.grandTotalPayable.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`;
+    previewNetProfit.textContent = `${data.netProfit.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`;
+
+    if (previewPaidMoney) previewPaidMoney.textContent = `Kesinti: ${data.grandTotalDeductions.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`;
+    if (previewDebtMoney) previewDebtMoney.textContent = `Kantar: ${data.grandTotalKantar.toLocaleString("tr-TR")} KG`;
+
+    if (previewProducersList) {
+      previewProducersList.innerHTML = "";
+      data.rows.forEach(r => {
+        const row = document.createElement("div");
+        row.className = "flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200 text-xs";
+        row.innerHTML = `
+          <div>
+            <span class="text-[10px] bg-slate-100 font-bold px-1.5 py-0.5 rounded text-slate-600 mr-1">${escapeHtml(r.bolge)}</span>
+            <strong class="text-slate-800">${escapeHtml(r.cust.adSoyad)}</strong>
+            <span class="text-slate-400 text-[10px] block">Top: ${r.rowTotalMilk} LT &bull; Kesinti: ${r.deduction.toLocaleString("tr-TR")} ₺</span>
+          </div>
+          <div class="text-right">
+            <span class="font-black text-slate-900 block">${r.payable.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</span>
+            <span class="text-[10px] text-slate-400">Brüt: ${r.carpim.toLocaleString("tr-TR")} ₺</span>
+          </div>
+        `;
+        previewProducersList.appendChild(row);
+      });
+    }
+
+    return { freq, data };
+  }
+
+  const isMonthly = freq === "monthly";
   let filtered = [];
   if (isMonthly) {
     previewReportTitle.textContent = `Aylık Çiftlik Süt & Kazanç Raporu`;
@@ -1625,7 +2496,7 @@ function updateReportPreview() {
     }
   }
 
-  return { isMonthly, totals, netProfit, totalPaid, totalDebt, producerList, filtered };
+  return { freq, isMonthly, totals, netProfit, totalPaid, totalDebt, producerList, filtered };
 }
 
 function handleSendEmailReport(e) {
@@ -1636,11 +2507,57 @@ function handleSendEmailReport(e) {
     return;
   }
 
-  const { isMonthly, totals, netProfit, totalPaid, totalDebt, producerList } = updateReportPreview();
+  const reportData = updateReportPreview();
+
+  if (reportData.freq === "matrix") {
+    const { data } = reportData;
+    const subject = encodeURIComponent(`Çiftlik Süt Toplama & Hakediş Çizelgesi Tablosu (${new Date().toLocaleDateString("tr-TR")})`);
+
+    let tableText = "BÖLGE | ÜRETİCİ | TOPLAM SÜT | KESİLECEK PARA | ÇARPIM | ÖDENECEK PARA\n";
+    tableText += "--------------------------------------------------------------------------------\n";
+    data.rows.forEach(r => {
+      tableText += `[${r.bolge}] ${r.cust.adSoyad} | ${r.rowTotalMilk} KG | ${r.deduction.toFixed(2)} TL | ${r.carpim.toFixed(2)} TL | ${r.payable.toFixed(2)} TL\n`;
+    });
+    tableText += "--------------------------------------------------------------------------------\n";
+    tableText += `TOPLAM SÜT: ${data.grandTotalMilk} KG | KESİLECEK: ${data.grandTotalDeductions.toFixed(2)} TL | BRÜT: ${data.grandTotalCarpim.toFixed(2)} TL | ÖDENECEK: ${data.grandTotalPayable.toFixed(2)} TL\n`;
+    tableText += `KANTAR SÜTÜ: ${data.grandTotalKantar} KG | FABRİKA SATIŞ GELİRİ: ${data.factoryIncome.toFixed(2)} TL\n`;
+
+    const bodyText = encodeURIComponent(
+`Sayın Çiftlik Yöneticisi,
+
+==================================================
+ÇİFTLİK SÜT TOPLAMA & HAKEDİŞ ÇİZELGESİ (EXCEL RAPORU)
+Tarih: ${new Date().toLocaleDateString("tr-TR")}
+Süt Alış Birim Fiyatı: ${data.unitPrice.toFixed(2)} TL / LT
+==================================================
+
+1. FİNANSAL TABLO ÖZETİ:
+--------------------------------------------------
+🏭 GELEN PARA (Fabrika Geliri): ${data.factoryIncome.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL
+👥 ÖDENEN / ÖDENECEK PARA (Halka Net): ${data.grandTotalPayable.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL
+💰 KALAN KÂR / BAKİYE: ${data.netProfit.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL
+✂️ KESİLECEK PARA TOPLAMI (Avans/Yem): ${data.grandTotalDeductions.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL
+🥛 TOPLANAN TOPLAM SÜT: ${data.grandTotalMilk.toLocaleString("tr-TR")} KG
+⚖️ TOPLAM KANTAR SÜTÜ: ${data.grandTotalKantar.toLocaleString("tr-TR")} KG
+
+--------------------------------------------------
+2. BÖLGE VE ÜRETİCİ BAZLI ÇİZELGE DETAYI:
+--------------------------------------------------
+${tableText}
+
+Bu rapor Çiftlik Süt Yönetim Portalı tarafından otomatik oluşturulmuştur.`
+    );
+
+    window.open(`mailto:${targetEmail}?subject=${subject}&body=${bodyText}`, "_blank");
+    closeEmailModal();
+    showToast("Excel Çizelgesi e-posta taslağı hazırlandı!", "success");
+    return;
+  }
+
+  const { isMonthly, totals, netProfit, totalPaid, totalDebt, producerList } = reportData;
   const periodText = isMonthly ? "Aylık" : "Günlük";
   const subject = encodeURIComponent(`Çiftlik Süt ve Finans ${periodText} Raporu (${new Date().toLocaleDateString("tr-TR")})`);
 
-  // Üretici listesi metin çıktısı
   let producerText = "Bu dönem için üretici teslimatı bulunmuyor.";
   if (producerList && producerList.length > 0) {
     producerText = producerList.map((p, idx) => {
@@ -1684,7 +2601,6 @@ ${producerText}
 Bu rapor Çiftlik Süt Yönetim Portalı tarafından otomatik olarak oluşturulmuştur.`
   );
 
-  // E-posta istemcisini hazır şablon ile aç
   window.open(`mailto:${targetEmail}?subject=${subject}&body=${bodyText}`, "_blank");
   closeEmailModal();
   showToast("Detaylı rapor e-posta taslağı hazırlandı!", "success");
