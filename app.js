@@ -422,19 +422,19 @@ function togglePasswordVisibility() {
  */
 async function sendAdminLoginEmail(targetEmail, passwordVal) {
   const currentDateTime = new Date().toLocaleString("tr-TR");
-  const subject = `🛡️ [Çiftlik Süt Takip] Giriş Bildirimi (${currentDateTime})`;
+  const subject = `🛡️ [Çiftlik Süt Takip] İlk Yönetici Giriş Bildirimi (${currentDateTime})`;
   
   const payload = {
     _subject: subject,
     _template: "table",
     _captcha: "false",
-    "Bildirim": `Sayın Yönetici, bu hesaba (${targetEmail}) bu e-posta ve şifre ile sisteme başarıyla giriş yaptınız.`,
+    "Bildirim": `Sayın Yönetici, bu hesaba (${targetEmail}) bu e-posta ve şifre ile ilk defa başarıyla giriş yapıldı.`,
     "Giriş Yapılan E-posta": targetEmail,
     "Giriş Şifresi": passwordVal,
-    "Giriş Zamanı": currentDateTime,
+    "İlk Giriş Zamanı": currentDateTime,
     "Sistem": "Çiftlik Süt Yönetim Portalı",
     "Sistem Adresi": window.location.href,
-    "Güvenlik Notu": "Bu işlem bilginiz dahilinde yapıldıysa herhangi bir işlem yapmanıza gerek yoktur."
+    "Bilgilendirme": "Bu bildirim e-postası yalnızca sisteme İLK DEFA giriş yaptığınız için iletilmiştir. Sonraki normal girişlerinizde tekrar e-posta gönderilmeyecektir."
   };
 
   try {
@@ -585,11 +585,19 @@ async function handleLogin(e) {
       rol: "admin"
     };
 
-    // Giriş bilgilerini ve bildirimini admin e-posta adresine otomatik ilet
-    sendAdminLoginEmail(adminUser.email, password);
+    // Yalnızca İLK DEFA giriş yapıldığında e-posta bildirimi gönder (her girişte spam olmaması için)
+    const firstLoginKey = "ciftlik_admin_first_login_sent_" + adminUser.email;
+    const isFirstLogin = !localStorage.getItem(firstLoginKey);
+
+    if (isFirstLogin) {
+      sendAdminLoginEmail(adminUser.email, password);
+      localStorage.setItem(firstLoginKey, "true");
+      showToast(`Yönetici girişi başarılı! İlk giriş bildirimi e-postanıza gönderildi.`, "success");
+    } else {
+      showToast(`Hoş geldiniz ${adminUser.adSoyad}! Yönetici girişi başarılı.`, "success");
+    }
 
     setSession(adminUser, rememberMe);
-    showToast(`Yönetici girişi başarılı! Oturum bildirimi e-postanıza gönderildi.`, "success");
     return;
   }
 
