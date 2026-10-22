@@ -237,6 +237,10 @@
               </svg>
             </button>
           </div>
+          <p id="login-admin-hint" class="text-[11px] text-emerald-700 font-semibold mt-1.5 flex items-center gap-1">
+            <span>💡</span>
+            <span>Kendi e-postanızı ve dilediğiniz şifreyi girip doğrudan oturum açabilirsiniz.</span>
+          </p>
         </div>
 
         <!-- Beni Hatırla Seçeneği -->
@@ -640,6 +644,19 @@
           <span id="user-display-name" class="font-bold hidden sm:inline max-w-[90px] truncate">Admin</span>
           <span id="user-role-tag" class="text-[9px] sm:text-[10px] bg-emerald-100 text-emerald-800 px-1 sm:px-1.5 py-0.5 rounded font-extrabold">Yönetici</span>
         </div>
+
+        <!-- Yönetici Şifre Değiştir Butonu -->
+        <button 
+          type="button" 
+          id="open-admin-password-btn" 
+          class="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition shadow-xs cursor-pointer active:scale-95"
+          title="Yönetici Şifrenizi Değiştirin"
+        >
+          <svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+          </svg>
+          <span>Şifre Değiştir</span>
+        </button>
 
         <!-- Çıkış Butonu -->
         <button 
@@ -1771,6 +1788,50 @@
           </button>
           <button type="submit" class="px-5 py-2.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-md transition">
             Fiyatları Kaydet
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- YÖNETİCİ ŞİFRE DEĞİŞTİRME MODALI -->
+  <!-- ========================================================================= -->
+  <div id="admin-password-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100">
+      <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+          <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+          Yönetici Şifresini Değiştir
+        </h3>
+        <button id="close-admin-password-modal-btn" type="button" class="p-1 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <form id="admin-password-form" class="space-y-4">
+        <div>
+          <label for="new-admin-password-input" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+            Yeni Yönetici Şifreniz
+          </label>
+          <input 
+            type="password" 
+            id="new-admin-password-input" 
+            placeholder="Yeni şifrenizi yazın"
+            required
+            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+          >
+          <p class="text-[11px] text-slate-400 mt-1">Bu e-postayla sonraki girişlerinizde bu yeni şifreyi kullanacaksınız.</p>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button type="button" id="cancel-admin-password-btn" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer">
+            İptal
+          </button>
+          <button type="submit" class="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-md transition cursor-pointer active:scale-95">
+            Şifreyi Kaydet
           </button>
         </div>
       </form>

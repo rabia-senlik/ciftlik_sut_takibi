@@ -205,6 +205,14 @@ const pricePublicInput = document.getElementById("price-public-input");
 const closePriceModalBtn = document.getElementById("close-price-modal-btn");
 const cancelPriceBtn = document.getElementById("cancel-price-btn");
 
+// Modallar: Yönetici Şifre Değiştirme Modalı
+const adminPasswordModal = document.getElementById("admin-password-modal");
+const openAdminPasswordBtn = document.getElementById("open-admin-password-btn");
+const closeAdminPasswordModalBtn = document.getElementById("close-admin-password-modal-btn");
+const cancelAdminPasswordBtn = document.getElementById("cancel-admin-password-btn");
+const adminPasswordForm = document.getElementById("admin-password-form");
+const newAdminPasswordInput = document.getElementById("new-admin-password-input");
+
 // Modallar: E-posta Rapor Modalı
 const emailModal = document.getElementById("email-modal");
 const emailReportForm = document.getElementById("email-report-form");
@@ -358,6 +366,12 @@ function setupEventListeners() {
   closePriceModalBtn.addEventListener("click", closePriceModal);
   cancelPriceBtn.addEventListener("click", closePriceModal);
   priceForm.addEventListener("submit", handleSavePrices);
+
+  // Yönetici Şifre Değiştirme Modalı
+  if (openAdminPasswordBtn) openAdminPasswordBtn.addEventListener("click", openAdminPasswordModal);
+  if (closeAdminPasswordModalBtn) closeAdminPasswordModalBtn.addEventListener("click", closeAdminPasswordModal);
+  if (cancelAdminPasswordBtn) cancelAdminPasswordBtn.addEventListener("click", closeAdminPasswordModal);
+  if (adminPasswordForm) adminPasswordForm.addEventListener("submit", handleSaveAdminPassword);
 
   // E-posta Rapor Modalı
   if (emailReportBtn) emailReportBtn.addEventListener("click", openEmailModal);
@@ -612,17 +626,37 @@ async function handleLogin(e) {
       return;
     }
 
-    // Yönetici Şifre Kontrolü (Varsayılan '123' veya yerel ayar)
-    const currentAdminPassword = localStorage.getItem("ciftlik_admin_password") || "123";
+    // Yönetici Şifre Kontrolü (Her yönetici e-postası kendi belirlediği şifreyi kullanabilir)
+    const emailKey = inputVal.toLowerCase().trim();
+    const savedEmailPwd = localStorage.getItem("ciftlik_admin_pwd_" + emailKey);
+    const globalAdminPwd = localStorage.getItem("ciftlik_admin_password");
 
-    if (password !== currentAdminPassword && password !== "123") {
-      showLoginError(
-        "Hatalı Yönetici Şifresi!", 
-        "Girdiğiniz yönetici şifresi yanlış! Lütfen doğru yönetici şifrenizi giriniz."
-      );
-      loginPasswordInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
-      loginPasswordInput.focus();
-      return;
+    // Eğer bu yönetici e-postası ilk defa giriliyorsa:
+    // Girdiği şifreyi bu e-postanın yeni yönetici şifresi olarak doğrudan kabul et ve kaydet!
+    if (!savedEmailPwd) {
+      localStorage.setItem("ciftlik_admin_pwd_" + emailKey, password);
+      localStorage.setItem("ciftlik_admin_password", password);
+    } else {
+      // Daha önce bu e-posta için şifre belirlenmişse kontrol et (veya acil durum '123')
+      const validPasswords = [
+        savedEmailPwd,
+        globalAdminPwd,
+        "123"
+      ].filter(Boolean);
+
+      if (!validPasswords.includes(password)) {
+        showLoginError(
+          "Hatalı Yönetici Şifresi!", 
+          `"${inputVal}" e-postası için belirlediğiniz şifre uyuşmuyor. Lütfen doğru şifrenizi giriniz veya "123" ile giriş yapıp üst menüden şifrenizi yenileyiniz.`
+        );
+        loginPasswordInput.classList.add("border-rose-500", "bg-rose-50", "ring-2", "ring-rose-200");
+        loginPasswordInput.focus();
+        return;
+      }
+
+      // Doğru giriş yapıldığında şifreyi sabitle
+      localStorage.setItem("ciftlik_admin_pwd_" + emailKey, password);
+      localStorage.setItem("ciftlik_admin_password", password);
     }
 
     // Başarılı Yönetici Girişi
@@ -843,6 +877,34 @@ async function handleSavePrices(e) {
   } catch (err) {
     showToast("Fiyat kaydedilirken hata: " + err.message, "error");
   }
+}
+
+function openAdminPasswordModal() {
+  if (newAdminPasswordInput) {
+    newAdminPasswordInput.value = "";
+    setTimeout(() => newAdminPasswordInput.focus(), 100);
+  }
+  if (adminPasswordModal) adminPasswordModal.classList.remove("hidden");
+}
+
+function closeAdminPasswordModal() {
+  if (adminPasswordModal) adminPasswordModal.classList.add("hidden");
+}
+
+function handleSaveAdminPassword(e) {
+  e.preventDefault();
+  const newPwd = newAdminPasswordInput ? newAdminPasswordInput.value.trim() : "";
+  if (!newPwd) {
+    showToast("Lütfen yeni bir şifre giriniz.", "warning");
+    return;
+  }
+
+  const emailKey = (currentUser && currentUser.email) ? currentUser.email.toLowerCase().trim() : "admin";
+  localStorage.setItem("ciftlik_admin_pwd_" + emailKey, newPwd);
+  localStorage.setItem("ciftlik_admin_password", newPwd);
+
+  closeAdminPasswordModal();
+  showToast("Yönetici şifreniz başarıyla güncellendi! Sonraki girişlerinizde bu şifreyi kullanabilirsiniz.", "success", 5000);
 }
 
 // ============================================================================
