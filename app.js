@@ -585,17 +585,8 @@ async function handleLogin(e) {
       rol: "admin"
     };
 
-    // Yalnızca İLK DEFA giriş yapıldığında e-posta bildirimi gönder (her girişte spam olmaması için)
-    const firstLoginKey = "ciftlik_admin_first_login_sent_" + adminUser.email;
-    const isFirstLogin = !localStorage.getItem(firstLoginKey);
-
-    if (isFirstLogin) {
-      sendAdminLoginEmail(adminUser.email, password);
-      localStorage.setItem(firstLoginKey, "true");
-      showToast(`Yönetici girişi başarılı! İlk giriş bildirimi e-postanıza gönderildi.`, "success");
-    } else {
-      showToast(`Hoş geldiniz ${adminUser.adSoyad}! Yönetici girişi başarılı.`, "success");
-    }
+    // Girişte e-posta gönderimi kapalı: Doğrudan oturum açılır
+    showToast(`Hoş geldiniz ${adminUser.adSoyad}! Yönetici girişi başarılı.`, "success");
 
     setSession(adminUser, rememberMe);
     return;
