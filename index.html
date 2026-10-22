@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Çiftlik Süt Üretim, Satış & Müşteri Takip Sistemi</title>
+  <title>Çiftlik Süt Toplama, Fabrika Satışı & Hesap Takip Sistemi</title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -41,6 +41,11 @@
     ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     .stat-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
     .stat-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); }
+    @media print {
+      body * { visibility: hidden; }
+      #printable-report, #printable-report * { visibility: visible; }
+      #printable-report { position: absolute; left: 0; top: 0; width: 100%; }
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col">
@@ -49,7 +54,7 @@
   <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-auto"></div>
 
   <!-- ========================================================================= -->
-  <!-- 1. GİRİŞ EKRANI (LOGIN VIEW - Kullanıcı giriş yapmamışsa görünür) -->
+  <!-- 1. GİRİŞ EKRANI (SEKMELİ: ADMIN & MÜŞTERİ AYRI GİRİŞİ) -->
   <!-- ========================================================================= -->
   <div id="login-view" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-100 relative overflow-hidden">
@@ -58,27 +63,46 @@
       <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-600"></div>
 
       <!-- Logo & Başlık -->
-      <div class="text-center mb-6">
-        <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-emerald-600 to-green-400 flex items-center justify-center text-white shadow-lg shadow-emerald-200 mb-3">
-          <svg class="w-9 h-9" fill="currentColor" viewBox="0 0 24 24">
+      <div class="text-center mb-5">
+        <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-emerald-600 to-green-400 flex items-center justify-center text-white shadow-lg shadow-emerald-200 mb-2">
+          <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
             <path d="M18.5 3H5.5C4.12 3 3 4.12 3 5.5v13C3 19.88 4.12 21 5.5 21h13c1.38 0 2.5-1.12 2.5-2.5v-13C21 4.12 19.88 3 18.5 3zm-6.5 2c1.93 0 3.5 1.57 3.5 3.5S13.93 12 12 12s-3.5-1.57-3.5-3.5S10.07 5 12 5zm6 13h-12v-1.5c0-2 4-3.1 6-3.1s6 1.1 6 3.1V18z"/>
           </svg>
         </div>
-        <h2 class="text-2xl font-extrabold text-slate-900">Çiftlik Süt Takip</h2>
-        <p class="text-xs text-slate-500 mt-1">Sisteme erişmek için kullanıcı adı ve şifrenizi girin</p>
+        <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900">Çiftlik Süt Yönetim Portalı</h2>
+        <p class="text-xs text-slate-500 mt-0.5">Lütfen giriş türünüzü seçin</p>
+      </div>
+
+      <!-- GİRİŞ TÜRÜ SEKMELERİ (ADMIN / MÜŞTERİ) -->
+      <div class="flex rounded-xl bg-slate-100 p-1 mb-5">
+        <button 
+          type="button" 
+          id="login-tab-admin" 
+          class="flex-1 py-2 text-xs font-bold rounded-lg bg-white text-emerald-800 shadow-xs transition flex items-center justify-center gap-1.5"
+        >
+          <span>👑 Yönetici (Admin)</span>
+        </button>
+        <button 
+          type="button" 
+          id="login-tab-customer" 
+          class="flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5"
+        >
+          <span>👤 Müşteri / Üretici</span>
+        </button>
       </div>
 
       <!-- Giriş Formu -->
       <form id="login-form" class="space-y-4" novalidate>
+        
         <div>
-          <label for="login-username" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-            Kullanıcı Adı
+          <label for="login-username" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5" id="login-username-label">
+            Yönetici E-posta veya Kullanıcı Adı
           </label>
           <div class="relative">
             <input 
               type="text" 
               id="login-username" 
-              placeholder="Örn: admin veya müşteri kullanıcı adı" 
+              placeholder="Örn: admin veya admin@ciftlik.com" 
               required
               class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
             >
@@ -111,26 +135,25 @@
           id="login-submit-btn" 
           class="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2 text-sm mt-2"
         >
-          <span>Giriş Yap</span>
+          <span id="login-btn-text">Yönetici Olarak Giriş Yap</span>
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
           </svg>
         </button>
       </form>
 
-      <!-- Bilgi Kutusu -->
-      <div class="mt-6 p-3 bg-emerald-50/80 rounded-xl border border-emerald-100 text-center">
+      <!-- Yardım ve Bilgi Kutusu -->
+      <div id="login-hint-box" class="mt-5 p-3 bg-emerald-50/80 rounded-xl border border-emerald-100 text-center">
         <p class="text-xs text-emerald-800 font-medium">
-          🔑 <strong>Yönetici (Admin) Girişi:</strong> <code class="font-bold bg-white px-1.5 py-0.5 rounded border border-emerald-200">admin</code> &bull; Şifre: <code class="font-bold bg-white px-1.5 py-0.5 rounded border border-emerald-200">123</code>
+          🔑 <strong>Admin Giriş:</strong> <code class="font-bold bg-white px-1.5 py-0.5 rounded border border-emerald-200">admin</code> veya e-postanız &bull; Şifre: <code class="font-bold bg-white px-1.5 py-0.5 rounded border border-emerald-200">123</code>
         </p>
-        <p class="text-[11px] text-emerald-600 mt-1">Müşteriler, adminin oluşturduğu kullanıcı adı ve şifre ile giriş yapabilir.</p>
       </div>
 
     </div>
   </div>
 
   <!-- ========================================================================= -->
-  <!-- 2. ÜST NAVBAR (HER İKİ KULLANICI İÇİN DE GÖRÜNÜR) -->
+  <!-- 2. ÜST NAVBAR -->
   <!-- ========================================================================= -->
   <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs backdrop-blur-md bg-white/95">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -143,29 +166,39 @@
           </svg>
         </div>
         <div>
-          <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight">Çiftlik Süt Takip</h1>
+          <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight">Çiftlik Süt Yönetimi</h1>
           <p class="text-xs text-slate-500" id="header-subtitle">Yönetici Paneli</p>
         </div>
       </div>
 
-      <!-- Kullanıcı Bilgisi, Birim Fiyat & Çıkış Yap Butonu -->
-      <div class="flex items-center gap-2 sm:gap-4">
+      <!-- Sağ Taraf: E-posta Raporu, Fiyat & Kullanıcı Bilgisi -->
+      <div class="flex items-center gap-2 sm:gap-3">
         
-        <!-- Litre Birim Fiyat Rozeti (Tıklanınca Fiyat Düzenleme Modalı Açılır) -->
+        <!-- E-posta Rapor Ayarları Butonu (Sadece Admin Görür) -->
         <button 
-          id="price-badge-btn"
-          class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 transition shadow-xs"
-          title="Süt Litre Fiyatını Güncelle"
+          id="email-report-btn"
+          class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition shadow-xs"
+          title="E-posta Raporu Gönder & Ayarla"
         >
-          <span class="text-amber-500 font-extrabold">₺</span>
-          <span>1 LT:</span>
-          <span id="nav-price-display" class="font-extrabold text-amber-700">25.00 ₺</span>
-          <svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+          <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
+          <span>E-posta Raporu</span>
         </button>
 
-        <!-- Giriş Yapan Kullanıcı Rozeti -->
+        <!-- Fabrika Satış Fiyatı Rozeti -->
+        <div id="factory-price-badge" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-900 border border-emerald-200">
+          <span>Fabrika:</span>
+          <span id="nav-factory-price-display" class="font-extrabold text-emerald-700">28.00 ₺</span>
+        </div>
+
+        <!-- Halka Ödenecek Fiyat Rozeti -->
+        <div id="public-price-badge" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
+          <span>Halk Alış:</span>
+          <span id="nav-public-price-display" class="font-extrabold text-amber-700">23.00 ₺</span>
+        </div>
+
+        <!-- Kullanıcı Rozeti -->
         <div id="user-badge" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
           <div class="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-[11px]" id="user-avatar">
             A
@@ -195,7 +228,7 @@
   <!-- ========================================================================= -->
   <main id="admin-view" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex-1 w-full">
     
-    <!-- Admin Sekmeleri (Süt Takip vs Müşteri Yönetimi) -->
+    <!-- Admin Sekmeleri -->
     <div class="flex items-center justify-between flex-wrap gap-4 mb-6 pb-2 border-b border-slate-200">
       <div class="flex items-center gap-2">
         <button 
@@ -205,7 +238,7 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
           </svg>
-          <span>Süt Üretim & Satış Takibi</span>
+          <span>Toplanan Süt & Fabrika Satışı</span>
         </button>
         <button 
           id="tab-customers-btn" 
@@ -214,79 +247,78 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
           </svg>
-          <span>Müşteri Yönetimi & Şifreler</span>
+          <span>Müşteri / Üretici Yönetimi</span>
           <span id="admin-customer-count-badge" class="bg-indigo-100 text-indigo-800 text-[10px] px-1.5 py-0.2 rounded-full font-extrabold">0</span>
         </button>
       </div>
 
-      <!-- Fiyat Güncelle Butonu (Mobilde de rahat görünsün) -->
-      <button 
-        id="quick-change-price-btn" 
-        class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-xs transition"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <span>Litre Fiyatını Değiştir (<span id="quick-price-val">25.00</span> ₺)</span>
-      </button>
+      <div class="flex items-center gap-2">
+        <!-- Hızlı Fiyat Düzenleme -->
+        <button 
+          id="quick-change-price-btn" 
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-xs transition"
+        >
+          <span>Fiyatları Güncelle</span>
+        </button>
+      </div>
     </div>
 
-    <!-- SEKME 1: SÜT TAKİP BÖLÜMÜ -->
+    <!-- SEKME 1: SÜT TOPLAMA & FABRİKA SATIŞ BÖLÜMÜ -->
     <div id="admin-milk-section">
       
-      <!-- Özet Kartları (Litre & TL Kazanç Bilgileri) -->
+      <!-- Özet Kartları: Toplanan Süt, Fabrika Geliri, Halka Ödenecek Para, Çiftlik Net Kazancı -->
       <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 mb-8">
         
-        <!-- 1. Toplam Üretim -->
+        <!-- 1. Toplanan Toplam Süt (Toplam Üretim) -->
         <div class="stat-card bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs relative">
           <div class="flex items-center justify-between">
-            <span class="text-xs sm:text-sm font-semibold text-slate-500">Toplam Üretim</span>
+            <span class="text-xs sm:text-sm font-semibold text-slate-500">Toplanan Süt (Üretim)</span>
             <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">🥛</div>
           </div>
           <div class="mt-3 flex items-baseline gap-1">
             <span id="stat-total" class="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">0</span>
             <span class="text-xs font-medium text-slate-400">LT</span>
           </div>
-          <div class="mt-1 text-[11px] font-bold text-blue-600" id="stat-total-money">0 ₺ değerinde</div>
+          <div class="mt-1 text-[11px] text-slate-400" id="stat-count">0 günlük kayıt</div>
         </div>
 
-        <!-- 2. Fabrikaya Verilen -->
-        <div class="stat-card bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs relative">
+        <!-- 2. Fabrikaya Satış (Litre & Gelir TL) -->
+        <div class="stat-card bg-white p-4 sm:p-5 rounded-2xl border border-emerald-100 bg-emerald-50/20 shadow-xs relative">
           <div class="flex items-center justify-between">
-            <span class="text-xs sm:text-sm font-semibold text-slate-500">Fabrikaya Verilen</span>
+            <span class="text-xs sm:text-sm font-semibold text-emerald-800">Fabrikaya Satış</span>
             <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">🏭</div>
           </div>
           <div class="mt-3 flex items-baseline gap-1">
             <span id="stat-factory" class="text-xl sm:text-2xl font-extrabold text-emerald-600 tracking-tight">0</span>
             <span class="text-xs font-medium text-slate-400">LT</span>
           </div>
-          <div class="mt-1 text-[11px] font-bold text-emerald-700" id="stat-factory-money">0 ₺ kazanç</div>
+          <div class="mt-1 text-[11px] font-bold text-emerald-700" id="stat-factory-money">0.00 ₺ Alacak / Gelir</div>
         </div>
 
-        <!-- 3. Halka Verilen (Müşteriler) -->
-        <div class="stat-card bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs relative">
+        <!-- 3. Halka Verilecek Toplam Para (Halk Borcu TL) -->
+        <div class="stat-card bg-white p-4 sm:p-5 rounded-2xl border border-amber-100 bg-amber-50/20 shadow-xs relative">
           <div class="flex items-center justify-between">
-            <span class="text-xs sm:text-sm font-semibold text-slate-500">Halka Verilen</span>
-            <div class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">👥</div>
+            <span class="text-xs sm:text-sm font-semibold text-amber-900">Halka Verilecek Para</span>
+            <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">👥</div>
           </div>
           <div class="mt-3 flex items-baseline gap-1">
-            <span id="stat-public" class="text-xl sm:text-2xl font-extrabold text-indigo-600 tracking-tight">0</span>
-            <span class="text-xs font-medium text-slate-400">LT</span>
+            <span id="stat-public-money" class="text-xl sm:text-2xl font-extrabold text-amber-700 tracking-tight">0.00</span>
+            <span class="text-xs font-semibold text-amber-500">₺</span>
           </div>
-          <div class="mt-1 text-[11px] font-bold text-indigo-700" id="stat-public-money">0 ₺ alacak</div>
+          <div class="mt-1 text-[11px] font-bold text-amber-800" id="stat-public-milk-total">0 LT halktan toplanan</div>
         </div>
 
-        <!-- 4. Kalan / Çiftlik -->
-        <div class="stat-card bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs relative">
+        <!-- 4. Çiftlik Net Kârı (Fabrika Geliri - Halka Ödenecek) -->
+        <div class="stat-card bg-white p-4 sm:p-5 rounded-2xl border border-indigo-100 bg-indigo-50/30 shadow-xs relative">
           <div class="flex items-center justify-between">
-            <span class="text-xs sm:text-sm font-semibold text-slate-500">Kalan / Çiftlik</span>
-            <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">🏡</div>
+            <span class="text-xs sm:text-sm font-semibold text-indigo-900">Çiftlik Net Kârı</span>
+            <div class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">💰</div>
           </div>
           <div class="mt-3 flex items-baseline gap-1">
-            <span id="stat-remaining" class="text-xl sm:text-2xl font-extrabold text-amber-600 tracking-tight">0</span>
-            <span class="text-xs font-medium text-slate-400">LT</span>
+            <span id="stat-net-profit" class="text-xl sm:text-2xl font-extrabold text-indigo-700 tracking-tight">0.00</span>
+            <span class="text-xs font-semibold text-indigo-500">₺</span>
           </div>
-          <div class="mt-1 text-[11px] text-slate-400">Buzağı & Ev tüketimi</div>
+          <div class="mt-1 text-[11px] text-indigo-600 font-medium">Gelir - Gider Farkı</div>
         </div>
 
       </section>
@@ -294,16 +326,16 @@
       <!-- Form ve Tablo Grid -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
-        <!-- SÜT KAYIT FORMU (Yönetici) -->
+        <!-- SÜT VE HESAP KAYIT FORMU -->
         <section class="lg:col-span-5 bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-7 sticky top-24">
           
           <div class="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
             <div>
               <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <span class="flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
-                Günlük Süt Kaydı Ekle
+                Günlük Süt & Satış Girişi
               </h2>
-              <p class="text-xs text-slate-500 mt-0.5">Önce toplanan toplam sütü, ardından dağıtımı girin</p>
+              <p class="text-xs text-slate-500 mt-0.5">Toplanan sütü ve fabrikaya satışı kaydedin</p>
             </div>
           </div>
 
@@ -323,10 +355,10 @@
               >
             </div>
 
-            <!-- 1. Üretilen Toplam Süt (Önce Toplanan Süt) -->
-            <div class="p-3.5 bg-blue-50/60 rounded-2xl border border-blue-100">
+            <!-- 1. Toplanan Süt (Otomatik Toplam Üretim) -->
+            <div class="p-3.5 bg-blue-50/70 rounded-2xl border border-blue-100">
               <label for="input-total" class="block text-xs font-extrabold uppercase tracking-wider text-blue-900 mb-1.5">
-                1. Toplanan Toplam Süt (Litre) <span class="text-rose-500">*</span>
+                1. Toplanan Süt (Toplam Üretim) <span class="text-rose-500">*</span>
               </label>
               <div class="relative">
                 <input 
@@ -335,121 +367,153 @@
                   min="0.1" 
                   id="input-total" 
                   name="toplamUretim" 
-                  placeholder="Örn: 850" 
+                  placeholder="Örn: 1000" 
                   required
                   class="w-full pl-4 pr-12 py-2.5 bg-white border border-blue-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
                 >
                 <span class="absolute right-4 top-2.5 text-xs font-bold text-slate-400">LT</span>
               </div>
-              <p class="text-[11px] text-blue-700 mt-1">İneklerden sağılan ve tanka giren toplam süt miktarı.</p>
+              <p class="text-[11px] text-blue-700 mt-1">Bu miktar sistemde otomatik olarak Toplam Üretim sayılır.</p>
             </div>
 
-            <!-- 2. Fabrikaya Verilen Süt -->
-            <div>
-              <label for="input-factory" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                2. Fabrikaya Verilen Süt (Litre)
-              </label>
-              <div class="relative">
-                <input 
-                  type="number" 
-                  step="0.1" 
-                  min="0" 
-                  id="input-factory" 
-                  name="fabrikaSut" 
-                  placeholder="Örn: 700" 
-                  class="w-full pl-4 pr-12 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
-                >
-                <span class="absolute right-4 top-2.5 text-xs font-bold text-slate-400">LT</span>
-              </div>
-            </div>
-
-            <!-- 3. Yerel Halka Satış (Kişi Bazlı) -->
-            <div class="bg-indigo-50/60 rounded-2xl p-4 border border-indigo-100">
-              <div class="flex items-center justify-between mb-2">
-                <label class="block text-xs font-bold uppercase tracking-wider text-indigo-900">
-                  3. Halka Verilen Süt (Kişi Bazlı)
+            <!-- 2. Fabrikaya Satış (Litre & Fabrika Satış Fiyatı) -->
+            <div class="p-3.5 bg-emerald-50/60 rounded-2xl border border-emerald-100 space-y-3">
+              <div class="flex items-center justify-between">
+                <label class="block text-xs font-extrabold uppercase tracking-wider text-emerald-900">
+                  2. Fabrikaya Satış
                 </label>
-                <span id="badge-halk-toplam" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
-                  Toplam: 0 LT (0 ₺)
-                </span>
+                <span id="live-factory-calc" class="text-xs font-extrabold text-emerald-700">0.00 ₺</span>
               </div>
-              
-              <p class="text-[11px] text-indigo-700/80 mb-3">Müşteriyi seçin veya adını yazıp verilen litreyi ekleyin:</p>
 
-              <!-- Kişi Ekleme Girişleri (Kayıtlı Müşteri Seçimi Destekli) -->
-              <div class="space-y-2 mb-3">
-                <div class="flex gap-2">
-                  <!-- Müşteri Seçici veya Manuel İsim -->
-                  <div class="flex-1">
-                    <input 
-                      type="text" 
-                      id="customer-name" 
-                      list="customer-datalist"
-                      placeholder="Müşteri Adı (Örn: Ahmet Yılmaz)" 
-                      class="w-full px-3 py-2 bg-white border border-indigo-200 rounded-xl text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-                    >
-                    <datalist id="customer-datalist">
-                      <!-- Dinamik olarak sistemdeki müşteriler gelecek -->
-                    </datalist>
-                  </div>
-                  
-                  <div class="relative w-24">
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <span class="text-[11px] text-slate-500 font-semibold mb-1 block">Verilen Süt (LT):</span>
+                  <div class="relative">
                     <input 
                       type="number" 
                       step="0.1" 
-                      min="0.1" 
-                      id="customer-amount" 
-                      placeholder="LT" 
-                      class="w-full pl-3 pr-7 py-2 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                      min="0" 
+                      id="input-factory" 
+                      name="fabrikaSut" 
+                      placeholder="Örn: 900" 
+                      class="w-full pl-3 pr-8 py-2 bg-white border border-emerald-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
                     >
                     <span class="absolute right-2.5 top-2 text-[10px] font-bold text-slate-400">LT</span>
                   </div>
+                </div>
 
-                  <button 
-                    type="button" 
-                    id="add-customer-btn" 
-                    class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold rounded-xl text-xs transition shadow-sm flex items-center justify-center gap-1 flex-shrink-0"
-                    title="Kişiyi Listeye Ekle"
+                <div>
+                  <span class="text-[11px] text-slate-500 font-semibold mb-1 block">Fabrika Fiyatı (₺/LT):</span>
+                  <div class="relative">
+                    <input 
+                      type="number" 
+                      step="0.25" 
+                      min="1" 
+                      id="input-factory-price" 
+                      placeholder="Örn: 28.00" 
+                      class="w-full pl-3 pr-8 py-2 bg-white border border-emerald-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                    >
+                    <span class="absolute right-2.5 top-2 text-[10px] font-bold text-slate-400">₺</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Halka Verilecek Para Hesabı (Süt Teslim Eden Köylüler) -->
+            <div class="bg-amber-50/60 rounded-2xl p-4 border border-amber-100 space-y-3">
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="block text-xs font-bold uppercase tracking-wider text-amber-900">
+                    3. Halka Verilecek Para Hesabı
+                  </label>
+                  <p class="text-[10px] text-amber-700/80">Süt teslim eden üreticiler ve alacakları para</p>
+                </div>
+                <div class="text-right">
+                  <span id="badge-halk-borc" class="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                    Halka: 0.00 ₺
+                  </span>
+                </div>
+              </div>
+
+              <!-- Halktan Alış Litre Fiyatı -->
+              <div class="flex items-center justify-between gap-3 bg-white p-2.5 rounded-xl border border-amber-200">
+                <span class="text-xs font-semibold text-slate-700">Halka Ödenecek Litre Fiyatı:</span>
+                <div class="relative w-28">
+                  <input 
+                    type="number" 
+                    step="0.25" 
+                    min="1" 
+                    id="input-public-price" 
+                    placeholder="Örn: 23.00" 
+                    class="w-full pl-3 pr-7 py-1.5 bg-slate-50 border border-amber-300 rounded-lg text-xs font-extrabold text-slate-900 text-right focus:outline-none focus:ring-2 focus:ring-amber-500"
                   >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                    </svg>
-                    <span>Ekle</span>
-                  </button>
+                  <span class="absolute right-2.5 top-1.5 text-[10px] font-bold text-slate-400">₺</span>
                 </div>
               </div>
 
-              <!-- Eklenen Kişilerin Listesi -->
+              <!-- Kişi Ekleme Satırı -->
+              <div class="flex gap-2">
+                <div class="flex-1">
+                  <input 
+                    type="text" 
+                    id="customer-name" 
+                    list="customer-datalist"
+                    placeholder="Üretici / Köylü Adı" 
+                    class="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 transition"
+                  >
+                  <datalist id="customer-datalist"></datalist>
+                </div>
+                
+                <div class="relative w-24">
+                  <input 
+                    type="number" 
+                    step="0.1" 
+                    min="0.1" 
+                    id="customer-amount" 
+                    placeholder="LT" 
+                    class="w-full pl-3 pr-7 py-2 bg-white border border-amber-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 transition"
+                  >
+                  <span class="absolute right-2.5 top-2 text-[10px] font-bold text-slate-400">LT</span>
+                </div>
+
+                <button 
+                  type="button" 
+                  id="add-customer-btn" 
+                  class="px-3 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold rounded-xl text-xs transition shadow-xs flex items-center justify-center gap-1 flex-shrink-0"
+                  title="Listeye Ekle"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>Ekle</span>
+                </button>
+              </div>
+
+              <!-- Eklenen Üreticilerin Listesi -->
               <div id="customer-list-box" class="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                <div id="customer-empty-text" class="text-center py-3 text-xs text-indigo-400 italic bg-white/50 rounded-xl border border-dashed border-indigo-200">
-                  Henüz kişi eklenmedi
+                <div id="customer-empty-text" class="text-center py-2 text-xs text-amber-500 italic bg-white/50 rounded-xl border border-dashed border-amber-200">
+                  Henüz üretici eklenmedi
                 </div>
               </div>
             </div>
 
-            <!-- Canlı Hesaplama & Aşım Uyarı Kartı -->
-            <div id="live-box" class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs transition-colors">
-              <div class="flex items-center justify-between mb-1">
-                <span class="text-slate-600 font-medium">Toplam Dağıtılan (Fabrika + Halk):</span>
-                <span id="live-distributed" class="font-bold text-slate-800">0.0 LT</span>
+            <!-- Canlı Kâr ve Hesap Özeti -->
+            <div id="live-box" class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
+              <div class="flex items-center justify-between">
+                <span class="text-slate-600 font-medium">Fabrika Geliri:</span>
+                <span id="live-income" class="font-bold text-emerald-700">0.00 ₺</span>
               </div>
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-slate-600 font-medium">Kalan / Çiftlikte Tutulan:</span>
-                <span id="live-remaining" class="font-bold text-emerald-600">0.0 LT</span>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-600 font-medium">Halka Verilecek Toplam Para:</span>
+                <span id="live-expense" class="font-bold text-amber-700">0.00 ₺</span>
               </div>
-              <!-- İlerleme Çubuğu -->
-              <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                <div id="live-bar" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+              <div class="pt-1.5 border-t border-slate-200 flex items-center justify-between text-sm font-extrabold">
+                <span class="text-slate-800">Çiftliğe Kalan Net Kâr:</span>
+                <span id="live-profit" class="text-indigo-700">0.00 ₺</span>
               </div>
-              <p id="live-alert" class="hidden text-rose-600 font-semibold mt-2 flex items-center gap-1.5">
-                <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                </svg>
-                <span>Verilen süt toplamı, toplanan sütü aşamaz!</span>
-              </p>
             </div>
 
-            <!-- İsteğe Bağlı Not -->
+            <!-- Not -->
             <div>
               <label for="input-note" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
                 Not / Açıklama (İsteğe bağlı)
@@ -457,7 +521,7 @@
               <input 
                 type="text" 
                 id="input-note" 
-                placeholder="Örn: Sabah sağımı, tank temizliği" 
+                placeholder="Örn: Sabah sağımı, fabrika teslimatı" 
                 class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
               >
             </div>
@@ -473,7 +537,7 @@
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <span id="submit-text">Kaydı Sisteme Kaydet</span>
+                <span id="submit-text">Günü Sisteme Kaydet</span>
               </button>
 
               <button 
@@ -489,7 +553,7 @@
 
         </section>
 
-        <!-- SÜT GEÇMİŞ TABLOSU (Admin) -->
+        <!-- SÜT GEÇMİŞ TABLOSU -->
         <section class="lg:col-span-7 bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-7">
           
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100">
@@ -500,15 +564,15 @@
                 </svg>
                 Kayıt Geçmişi & Tablo
               </h2>
-              <p class="text-xs text-slate-500 mt-0.5">Tarihe göre sıralı döküm ve toplam tutarlar</p>
+              <p class="text-xs text-slate-500 mt-0.5">Toplanan süt, fabrika geliri ve halka verilecek paralar</p>
             </div>
 
-            <!-- Arama Filtresi -->
+            <!-- Arama -->
             <div class="relative w-full sm:w-48">
               <input 
                 type="text" 
                 id="search-input" 
-                placeholder="Tarih, not veya kişi ara..." 
+                placeholder="Tarih veya not ara..." 
                 class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
               >
               <svg class="w-4 h-4 text-slate-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -517,16 +581,16 @@
             </div>
           </div>
 
-          <!-- Tablo Kapsayıcısı -->
+          <!-- Tablo -->
           <div class="overflow-x-auto -mx-6 sm:mx-0">
             <table class="w-full text-left border-collapse min-w-[580px]">
               <thead>
                 <tr class="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/75">
                   <th class="py-3 px-4 rounded-l-xl">Tarih</th>
-                  <th class="py-3 px-3">Toplam Üretim</th>
-                  <th class="py-3 px-3">Fabrika</th>
-                  <th class="py-3 px-3">Halk Satışı</th>
-                  <th class="py-3 px-3">Kalan</th>
+                  <th class="py-3 px-3">Toplanan Süt</th>
+                  <th class="py-3 px-3">Fabrika Satışı</th>
+                  <th class="py-3 px-3">Halka Verilecek</th>
+                  <th class="py-3 px-3">Net Kâr</th>
                   <th class="py-3 px-3 rounded-r-xl text-right">İşlem</th>
                 </tr>
               </thead>
@@ -542,7 +606,7 @@
               🥛
             </div>
             <h3 class="text-sm font-bold text-slate-700">Henüz Kayıt Yok</h3>
-            <p class="text-xs text-slate-400 max-w-xs mt-1">Sol taraftaki formdan bugünün süt kaydını ekleyebilirsiniz.</p>
+            <p class="text-xs text-slate-400 max-w-xs mt-1">Sol taraftaki formdan bugünün toplanan süt ve fabrika satışını kaydedebilirsiniz.</p>
           </div>
 
         </section>
@@ -551,21 +615,21 @@
 
     </div>
 
-    <!-- SEKME 2: MÜŞTERİ YÖNETİMİ BÖLÜMÜ -->
+    <!-- SEKME 2: MÜŞTERİ / ÜRETİCİ YÖNETİMİ BÖLÜMÜ -->
     <div id="admin-customers-section" class="hidden">
       
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
-        <!-- YENİ MÜŞTERİ EKLEME FORMU -->
+        <!-- YENİ ÜRETİCİ / MÜŞTERİ TANIMLAMA -->
         <section class="lg:col-span-5 bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-7 sticky top-24">
           
           <div class="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
             <div>
               <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <span class="flex h-2.5 w-2.5 rounded-full bg-indigo-500"></span>
-                Yeni Müşteri Tanımla
+                Yeni Müşteri / Üretici Ekle
               </h2>
-              <p class="text-xs text-slate-500 mt-0.5">Müşteriye kullanıcı adı ve şifre verin</p>
+              <p class="text-xs text-slate-500 mt-0.5">Süt veren kişiye giriş bilgileri oluşturun</p>
             </div>
           </div>
 
@@ -573,7 +637,7 @@
             
             <div>
               <label for="new-cust-name" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                Müşteri Ad Soyad <span class="text-rose-500">*</span>
+                Ad Soyad <span class="text-rose-500">*</span>
               </label>
               <input 
                 type="text" 
@@ -586,12 +650,12 @@
 
             <div>
               <label for="new-cust-username" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                Giriş Kullanıcı Adı <span class="text-rose-500">*</span>
+                Giriş Kullanıcı Adı veya E-posta <span class="text-rose-500">*</span>
               </label>
               <input 
                 type="text" 
                 id="new-cust-username" 
-                placeholder="Örn: ahmetyilmaz" 
+                placeholder="Örn: ahmet veya ahmet@gmail.com" 
                 required 
                 class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
               >
@@ -612,7 +676,7 @@
 
             <div>
               <label for="new-cust-phone" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                Telefon / Not (İsteğe bağlı)
+                Telefon Numarası (İsteğe bağlı)
               </label>
               <input 
                 type="text" 
@@ -624,20 +688,16 @@
 
             <button 
               type="submit" 
-              id="save-new-cust-btn"
               class="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-md shadow-indigo-600/20 hover:shadow-lg transition flex items-center justify-center gap-2 text-sm mt-3"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
-              <span>Müşteriyi Kaydet</span>
+              <span>Müşteri / Üreticiyi Kaydet</span>
             </button>
 
           </form>
 
         </section>
 
-        <!-- KAYITLI MÜŞTERİ LİSTESİ TABLOSU -->
+        <!-- MÜŞTERİ LİSTESİ TABLOSU -->
         <section class="lg:col-span-7 bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-7">
           
           <div class="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
@@ -646,9 +706,9 @@
                 <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
-                Kayıtlı Müşteriler & Hesap Bilgileri
+                Kayıtlı Müşteriler & Alacak Hesapları
               </h2>
-              <p class="text-xs text-slate-500 mt-0.5">Müşterilerin şifreleri, aldıkları toplam süt ve borçları</p>
+              <p class="text-xs text-slate-500 mt-0.5">Üreticilerin şifreleri, verdikleri toplam süt ve alacakları para</p>
             </div>
           </div>
 
@@ -659,8 +719,8 @@
                 <tr class="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/75">
                   <th class="py-3 px-4 rounded-l-xl">Müşteri</th>
                   <th class="py-3 px-3">Giriş Bilgileri</th>
-                  <th class="py-3 px-3">Toplam Aldığı Süt</th>
-                  <th class="py-3 px-3">Toplam Tutar</th>
+                  <th class="py-3 px-3">Verdiği Süt</th>
+                  <th class="py-3 px-3">Halka Ödenecek</th>
                   <th class="py-3 px-3 rounded-r-xl text-right">İşlem</th>
                 </tr>
               </thead>
@@ -670,13 +730,12 @@
             </table>
           </div>
 
-          <!-- Müşteri Yok Durumu -->
           <div id="customers-empty-state" class="hidden py-12 flex flex-col items-center justify-center text-center">
             <div class="w-16 h-16 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-500 mb-3 text-2xl">
               👥
             </div>
             <h3 class="text-sm font-bold text-slate-700">Henüz Müşteri Eklenmedi</h3>
-            <p class="text-xs text-slate-400 max-w-xs mt-1">Soldaki formdan müşterilerinizi sisteme ekleyebilirsiniz.</p>
+            <p class="text-xs text-slate-400 max-w-xs mt-1">Soldaki formdan süt aldığınız üreticileri ekleyebilirsiniz.</p>
           </div>
 
         </section>
@@ -688,29 +747,28 @@
   </main>
 
   <!-- ========================================================================= -->
-  <!-- 4. MÜŞTERİ PANELİ (SADECE MÜŞTERİ GİRİŞ YAPTIĞINDA GÖRÜNÜR) -->
+  <!-- 4. MÜŞTERİ / ÜRETİCİ PORTALI -->
   <!-- ========================================================================= -->
   <main id="customer-view" class="hidden max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex-1 w-full">
     
-    <!-- Müşteri Karşılama Başlığı -->
+    <!-- Başlık Banner -->
     <div class="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl p-6 sm:p-8 text-white shadow-lg mb-8">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <span class="inline-block px-3 py-1 rounded-full text-xs font-bold bg-white/20 text-white mb-2">
-            Müşteri Portalı
+            Üretici & Müşteri Portalı
           </span>
           <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight" id="cust-portal-welcome">
             Hoş Geldiniz!
           </h2>
           <p class="text-xs sm:text-sm text-emerald-100 mt-1">
-            Çiftliğimizden aldığınız süt miktarını ve hesap bakiyenizi buradan anlık olarak takip edebilirsiniz.
+            Çiftliğe teslim ettiğiniz sütleri ve çiftlikten alacağınız toplam parayı buradan takip edebilirsiniz.
           </p>
         </div>
 
-        <!-- Güncel Litre Fiyatı Göstergesi -->
         <div class="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 text-right flex-shrink-0">
-          <span class="text-xs text-emerald-100 font-medium block">Süt Litre Fiyatı:</span>
-          <span id="cust-current-price-badge" class="text-2xl font-black text-white">25.00 ₺</span>
+          <span class="text-xs text-emerald-100 font-medium block">Süt Alış Fiyatı:</span>
+          <span id="cust-current-price-badge" class="text-2xl font-black text-white">23.00 ₺</span>
         </div>
       </div>
     </div>
@@ -719,53 +777,53 @@
     <section class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
       
       <div class="stat-card bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-        <span class="text-xs font-semibold text-slate-500">Aldığım Toplam Süt</span>
+        <span class="text-xs font-semibold text-slate-500">Teslim Ettiğim Toplam Süt</span>
         <div class="mt-2 flex items-baseline gap-1">
           <span id="cust-total-milk" class="text-3xl font-extrabold text-slate-900">0</span>
           <span class="text-sm font-semibold text-slate-400">Litre</span>
         </div>
-        <div class="mt-1 text-xs text-slate-400" id="cust-total-records-count">0 alım kaydı</div>
+        <div class="mt-1 text-xs text-slate-400" id="cust-total-records-count">0 teslimat kaydı</div>
       </div>
 
       <div class="stat-card bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-        <span class="text-xs font-semibold text-slate-500">Litre Birim Fiyatı</span>
+        <span class="text-xs font-semibold text-slate-500">Litre Başı Fiyat</span>
         <div class="mt-2 flex items-baseline gap-1">
-          <span id="cust-card-price" class="text-3xl font-extrabold text-emerald-600">25.00</span>
+          <span id="cust-card-price" class="text-3xl font-extrabold text-emerald-600">23.00</span>
           <span class="text-sm font-semibold text-slate-400">₺ / LT</span>
         </div>
-        <div class="mt-1 text-xs text-emerald-600 font-medium">Güncel fiyat tarifesi</div>
+        <div class="mt-1 text-xs text-emerald-600 font-medium">Çiftlik alış tarifesi</div>
       </div>
 
-      <div class="stat-card bg-white p-5 rounded-2xl border border-indigo-100 bg-indigo-50/30 shadow-xs">
-        <span class="text-xs font-semibold text-indigo-700">Toplam Ödenecek Tutar</span>
+      <div class="stat-card bg-white p-5 rounded-2xl border border-amber-100 bg-amber-50/30 shadow-xs">
+        <span class="text-xs font-semibold text-amber-800">Çiftlikten Alacağım Para</span>
         <div class="mt-2 flex items-baseline gap-1">
-          <span id="cust-total-money" class="text-3xl font-extrabold text-indigo-700">0.00</span>
-          <span class="text-sm font-semibold text-indigo-500">₺</span>
+          <span id="cust-total-money" class="text-3xl font-extrabold text-amber-700">0.00</span>
+          <span class="text-sm font-semibold text-amber-500">₺</span>
         </div>
-        <div class="mt-1 text-xs text-indigo-600 font-medium">Hesap bakiyesi</div>
+        <div class="mt-1 text-xs text-amber-600 font-medium">Toplam hakediş tutarı</div>
       </div>
 
     </section>
 
-    <!-- Müşteri İşlem Alanı (Süt Alımı Girişi ve Geçmişi) -->
+    <!-- Müşteri İşlem Alanı -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
       
-      <!-- Müşteri Kendisi Süt Girişi Yapar -->
+      <!-- Müşteri Kendi Sütünü Yazar -->
       <section class="lg:col-span-5 bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-7">
         <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
           <div>
             <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-              Süt Alımı Ekle
+              Teslim Ettiğim Sütü Gir
             </h3>
-            <p class="text-xs text-slate-500 mt-0.5">Bugün aldığınız süt miktarını sisteme işleyin</p>
+            <p class="text-xs text-slate-500 mt-0.5">Bugün teslim ettiğiniz süt miktarını işleyin</p>
           </div>
         </div>
 
         <form id="cust-milk-form" class="space-y-4" novalidate>
           <div>
             <label for="cust-input-date" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-              Alım Tarihi <span class="text-rose-500">*</span>
+              Teslim Tarihi <span class="text-rose-500">*</span>
             </label>
             <input 
               type="date" 
@@ -777,7 +835,7 @@
 
           <div>
             <label for="cust-input-amount" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-              Aldığınız Süt Miktarı (Litre) <span class="text-rose-500">*</span>
+              Teslim Edilen Süt (Litre) <span class="text-rose-500">*</span>
             </label>
             <div class="relative">
               <input 
@@ -785,7 +843,7 @@
                 step="0.1" 
                 min="0.1" 
                 id="cust-input-amount" 
-                placeholder="Örn: 5" 
+                placeholder="Örn: 25" 
                 required
                 class="w-full pl-4 pr-12 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
               >
@@ -793,10 +851,9 @@
             </div>
           </div>
 
-          <!-- Hesaplanan Tutar Önizlemesi -->
-          <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center justify-between text-xs">
-            <span class="text-emerald-800 font-medium">Hesaplanan Tutar:</span>
-            <span id="cust-live-calc-total" class="font-extrabold text-emerald-700 text-sm">0.00 ₺</span>
+          <div class="p-3 bg-amber-50 rounded-xl border border-amber-100 flex items-center justify-between text-xs">
+            <span class="text-amber-800 font-medium">Alacağınız Para (Hesaplanan):</span>
+            <span id="cust-live-calc-total" class="font-extrabold text-amber-700 text-sm">0.00 ₺</span>
           </div>
 
           <div>
@@ -806,20 +863,19 @@
             <input 
               type="text" 
               id="cust-input-note" 
-              placeholder="Örn: Akşam sağımdan teslim alındı" 
+              placeholder="Örn: Sabah teslimatı" 
               class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
             >
           </div>
 
           <button 
             type="submit" 
-            id="cust-submit-btn" 
-            class="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-md shadow-emerald-600/20 hover:shadow-lg transition flex items-center justify-center gap-2 text-sm"
+            class="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-sm"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
-            <span>Süt Girişini Kaydet</span>
+            <span>Süt Teslimatını Kaydet</span>
           </button>
         </form>
       </section>
@@ -832,9 +888,9 @@
               <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              Süt Alım Geçmişim
+              Süt Teslimat Geçmişim
             </h3>
-            <p class="text-xs text-slate-500 mt-0.5">Sadece size ait alımlar listelenir</p>
+            <p class="text-xs text-slate-500 mt-0.5">Sadece size ait teslimatlar listelenir</p>
           </div>
         </div>
 
@@ -845,8 +901,8 @@
                 <th class="py-3 px-4 rounded-l-xl">Tarih</th>
                 <th class="py-3 px-3">Miktar</th>
                 <th class="py-3 px-3">Birim Fiyat</th>
-                <th class="py-3 px-3">Tutar</th>
-                <th class="py-3 px-3 rounded-r-xl">Açıklama</th>
+                <th class="py-3 px-3">Alacağım Para</th>
+                <th class="py-3 px-3 rounded-r-xl">Not</th>
               </tr>
             </thead>
             <tbody id="cust-records-table-body" class="divide-y divide-slate-100 text-sm">
@@ -859,8 +915,8 @@
           <div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-2 text-xl">
             🥛
           </div>
-          <h4 class="text-xs font-bold text-slate-700">Henüz Süt Alım Kaydınız Yok</h4>
-          <p class="text-[11px] text-slate-400 mt-0.5">Soldaki formdan aldığınız süt miktarını ekleyebilirsiniz.</p>
+          <h4 class="text-xs font-bold text-slate-700">Henüz Süt Teslimat Kaydınız Yok</h4>
+          <p class="text-[11px] text-slate-400 mt-0.5">Soldaki formdan verdiğiniz süt miktarını ekleyebilirsiniz.</p>
         </div>
 
       </section>
@@ -870,16 +926,100 @@
   </main>
 
   <!-- ========================================================================= -->
-  <!-- 5. MODALLAR (FİYAT DÜZENLEME, KİŞİ DETAY, SİLME ONAY) -->
+  <!-- 5. E-POSTA RAPORLAMA MODALI (GÜNLÜK / AYLIK) -->
   <!-- ========================================================================= -->
+  <div id="email-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-100">
+      <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+        <div>
+          <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-blue-500"></span>
+            E-posta Rapor Gönderimi & Ayarları
+          </h3>
+          <p class="text-xs text-slate-500 mt-0.5">Günlük veya aylık üretim & kazanç raporunuz</p>
+        </div>
+        <button id="close-email-modal-btn" class="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
 
-  <!-- Litre Fiyatı Güncelleme Modalı (Sadece Admin Açabilir) -->
+      <form id="email-report-form" class="space-y-4">
+        <div>
+          <label for="report-email-input" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+            Raporun Gönderileceği E-posta Adresi <span class="text-rose-500">*</span>
+          </label>
+          <input 
+            type="email" 
+            id="report-email-input" 
+            placeholder="Örn: ciftliksahibi@gmail.com" 
+            required 
+            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+          >
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+            Rapor Dönemi / Sıklığı
+          </label>
+          <div class="grid grid-cols-2 gap-3">
+            <label class="flex items-center gap-2 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 text-xs font-bold text-slate-700">
+              <input type="radio" name="reportFrequency" value="daily" checked class="text-blue-600 focus:ring-blue-500">
+              <span>📅 Günlük Rapor (Bugün)</span>
+            </label>
+            <label class="flex items-center gap-2 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 text-xs font-bold text-slate-700">
+              <input type="radio" name="reportFrequency" value="monthly" class="text-blue-600 focus:ring-blue-500">
+              <span>📆 Aylık Rapor (Bu Ay)</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Rapor Önizleme Alanı -->
+        <div id="report-preview-box" class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1">
+          <div class="font-bold text-slate-800 mb-1 flex items-center justify-between">
+            <span id="preview-report-title">Günlük Çiftlik Raporu</span>
+            <span class="text-[10px] text-slate-400" id="preview-report-date">Bugün</span>
+          </div>
+          <div class="flex justify-between"><span>Toplanan Süt:</span><strong id="preview-total-milk">0 LT</strong></div>
+          <div class="flex justify-between"><span>Fabrika Satışı & Geliri:</span><strong class="text-emerald-700" id="preview-factory-money">0.00 ₺</strong></div>
+          <div class="flex justify-between"><span>Halka Verilecek Para:</span><strong class="text-amber-700" id="preview-public-money">0.00 ₺</strong></div>
+          <div class="flex justify-between pt-1 border-t border-slate-200 text-indigo-700 font-extrabold"><span>Net Kazanç:</span><span id="preview-net-profit">0.00 ₺</span></div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button 
+            type="button" 
+            id="print-report-btn" 
+            class="px-4 py-2.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl flex items-center gap-1.5 transition"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            <span>Yazdır / PDF</span>
+          </button>
+
+          <button 
+            type="submit" 
+            class="px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md transition flex items-center gap-1.5"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            <span>Raporu E-postaya Gönder</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Fiyat Güncelleme Modalı (Fabrika & Halk Alış) -->
   <div id="price-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100">
       <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
         <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
           <span class="w-3 h-3 rounded-full bg-amber-500"></span>
-          Süt Litre Fiyatı Belirle
+          Litre Fiyat Tarifesi
         </h3>
         <button id="close-price-modal-btn" class="p-1 text-slate-400 hover:text-slate-700 rounded-lg">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -890,23 +1030,35 @@
 
       <form id="price-form" class="space-y-4">
         <div>
-          <label for="price-input" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-            Litre Başı TL Fiyatı (₺)
+          <label for="price-factory-input" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+            Fabrika Satış Litre Fiyatı (₺/LT)
           </label>
-          <div class="relative">
-            <input 
-              type="number" 
-              step="0.25" 
-              min="1" 
-              id="price-input" 
-              placeholder="Örn: 25.00" 
-              required 
-              class="w-full pl-8 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-base font-extrabold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition"
-            >
-            <span class="absolute left-3 top-3 text-base font-bold text-slate-400">₺</span>
-            <span class="absolute right-3.5 top-3.5 text-xs font-bold text-slate-400">/ LT</span>
-          </div>
-          <p class="text-[11px] text-slate-400 mt-1">Bu fiyat tüm hesaplamalarda ve müşteri panellerinde anında geçerli olur.</p>
+          <input 
+            type="number" 
+            step="0.25" 
+            min="1" 
+            id="price-factory-input" 
+            placeholder="Örn: 28.00" 
+            required 
+            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-extrabold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+          >
+          <p class="text-[10px] text-slate-400 mt-0.5">Fabrikaya satılan sütün litre fiyatı.</p>
+        </div>
+
+        <div>
+          <label for="price-public-input" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+            Halka Verilecek Litre Fiyatı (₺/LT)
+          </label>
+          <input 
+            type="number" 
+            step="0.25" 
+            min="1" 
+            id="price-public-input" 
+            placeholder="Örn: 23.00" 
+            required 
+            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-extrabold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition"
+          >
+          <p class="text-[10px] text-slate-400 mt-0.5">Süt veren üreticilere ödenecek litre fiyatı.</p>
         </div>
 
         <div class="flex items-center justify-end gap-2 pt-2">
@@ -914,45 +1066,14 @@
             Vazgeç
           </button>
           <button type="submit" class="px-5 py-2.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-md transition">
-            Fiyatı Güncelle
+            Fiyatları Kaydet
           </button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Kişi Detay Modalı (Admin için) -->
-  <div id="customer-detail-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
-      <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
-        <div>
-          <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-            <span class="w-3 h-3 rounded-full bg-indigo-500"></span>
-            Halka Verilen Süt Detayları
-          </h3>
-          <p class="text-xs text-slate-500 mt-0.5" id="customer-modal-subtitle">Tarih</p>
-        </div>
-        <button id="close-customer-modal-btn" class="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-
-      <!-- Kişi Listesi -->
-      <div id="customer-modal-list" class="space-y-2 max-h-72 overflow-y-auto pr-1 divide-y divide-slate-100">
-        <!-- JS ile doldurulacak -->
-      </div>
-
-      <!-- Toplam Özet -->
-      <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-        <span class="text-slate-500 font-medium">Toplam Dağıtılan:</span>
-        <span id="customer-modal-total" class="font-bold text-indigo-700 text-sm">0 LT (0 ₺)</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Silme Onay Modalı -->
+  <!-- Silme Modalı -->
   <div id="delete-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-100">
       <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mb-4 text-xl">
@@ -975,7 +1096,7 @@
   <!-- Footer -->
   <footer class="mt-auto border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-400">
     <div class="max-w-7xl mx-auto px-4">
-      Çiftlik Süt Takip Sistemi &bull; Yönetici & Müşteri Portalı &bull; Serverless (Firebase Firestore)
+      Çiftlik Süt Yönetim Sistemi &bull; Toplama, Fabrika Satışı & Halka Ödeme Takibi
     </div>
   </footer>
 
