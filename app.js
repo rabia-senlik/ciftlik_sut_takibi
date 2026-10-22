@@ -209,13 +209,19 @@ let activeModalCustomer = null;
 // ============================================================================
 // 4. BAŞLANGIÇ (INIT) & TARİH SEÇİCİLERİ (GÜN / AY / YIL)
 // ============================================================================
-document.addEventListener("DOMContentLoaded", () => {
+function initApp() {
   initDateSelectors();
   setupEventListeners();
   initSettingsListener();
   initUsersListener();
   checkPersistedSession();
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initApp);
+} else {
+  initApp();
+}
 
 function initDateSelectors() {
   // 1-31 Günler
@@ -251,8 +257,6 @@ function initDateSelectors() {
 
   fillDaySelect(dateDay);
   fillYearSelect(dateYear);
-  fillDaySelect(custDateDay);
-  fillYearSelect(custDateYear);
 
   setDefaultDates();
 }
@@ -266,10 +270,6 @@ function setDefaultDates() {
   if (dateDay) dateDay.value = dd;
   if (dateMonth) dateMonth.value = mm;
   if (dateYear) dateYear.value = yyyy;
-
-  if (custDateDay) custDateDay.value = dd;
-  if (custDateMonth) custDateMonth.value = mm;
-  if (custDateYear) custDateYear.value = yyyy;
 }
 
 function getAdminSelectedDate() {
@@ -277,10 +277,6 @@ function getAdminSelectedDate() {
   return `${dateYear.value}-${dateMonth.value}-${dateDay.value}`;
 }
 
-function getCustomerSelectedDate() {
-  if (!custDateDay || !custDateMonth || !custDateYear) return "";
-  return `${custDateYear.value}-${custDateMonth.value}-${custDateDay.value}`;
-}
 
 // ============================================================================
 // 5. ETKİNLİK DİNLEYİCİLERİ
@@ -541,6 +537,8 @@ function switchLoginTab(mode) {
     loginHintBox.classList.add("hidden");
   }
 }
+window.switchLoginTab = switchLoginTab;
+
 
 async function handleLogin(e) {
   e.preventDefault();
