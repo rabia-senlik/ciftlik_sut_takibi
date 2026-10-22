@@ -104,6 +104,7 @@ const publicPriceInput = document.getElementById("input-public-price");
 const customerNameInput = document.getElementById("customer-name");
 const customerDatalist = document.getElementById("customer-datalist");
 const customerAmountInput = document.getElementById("customer-amount");
+const customerPaidCheckbox = document.getElementById("customer-paid-checkbox");
 const addCustomerBtn = document.getElementById("add-customer-btn");
 const customerListBox = document.getElementById("customer-list-box");
 const badgeHalkBorc = document.getElementById("badge-halk-borc");
@@ -141,24 +142,18 @@ const newCustPhone = document.getElementById("new-cust-phone");
 const customersTableBody = document.getElementById("customers-table-body");
 const customersEmptyState = document.getElementById("customers-empty-state");
 
-// Müşteri Portalı Elementleri
+// Müşteri Portalı Elementleri (Salt Okunur Takip)
 const custPortalWelcome = document.getElementById("cust-portal-welcome");
 const custCurrentPriceBadge = document.getElementById("cust-current-price-badge");
 const custTotalMilk = document.getElementById("cust-total-milk");
-const custCardPrice = document.getElementById("cust-card-price");
 const custTotalMoney = document.getElementById("cust-total-money");
+const custPaidMoney = document.getElementById("cust-paid-money");
+const custPendingMoney = document.getElementById("cust-pending-money");
 const custTotalRecordsCount = document.getElementById("cust-total-records-count");
-const custMilkForm = document.getElementById("cust-milk-form");
-const custDateDay = document.getElementById("cust-date-day");
-const custDateMonth = document.getElementById("cust-date-month");
-const custDateYear = document.getElementById("cust-date-year");
-const custInputAmount = document.getElementById("cust-input-amount");
-const custInputNote = document.getElementById("cust-input-note");
-const custLiveCalcTotal = document.getElementById("cust-live-calc-total");
 const custRecordsTableBody = document.getElementById("cust-records-table-body");
 const custEmptyState = document.getElementById("cust-empty-state");
 
-// Modallar
+// Modallar: Fiyat Modalı
 const priceModal = document.getElementById("price-modal");
 const priceForm = document.getElementById("price-form");
 const priceFactoryInput = document.getElementById("price-factory-input");
@@ -166,6 +161,7 @@ const pricePublicInput = document.getElementById("price-public-input");
 const closePriceModalBtn = document.getElementById("close-price-modal-btn");
 const cancelPriceBtn = document.getElementById("cancel-price-btn");
 
+// Modallar: E-posta Rapor Modalı
 const emailModal = document.getElementById("email-modal");
 const emailReportForm = document.getElementById("email-report-form");
 const reportEmailInput = document.getElementById("report-email-input");
@@ -176,12 +172,30 @@ const previewReportDate = document.getElementById("preview-report-date");
 const previewTotalMilk = document.getElementById("preview-total-milk");
 const previewFactoryMoney = document.getElementById("preview-factory-money");
 const previewPublicMoney = document.getElementById("preview-public-money");
+const previewPaidMoney = document.getElementById("preview-paid-money");
+const previewDebtMoney = document.getElementById("preview-debt-money");
 const previewNetProfit = document.getElementById("preview-net-profit");
+const previewProducersList = document.getElementById("preview-producers-list");
 
+// Modallar: Müşteri Teslimat & Ödeme Yönetimi Modalı (Admin için)
+const customerPaymentModal = document.getElementById("customer-payment-modal");
+const payModalCustomerName = document.getElementById("pay-modal-customer-name");
+const payModalTotalMilk = document.getElementById("pay-modal-total-milk");
+const payModalTotalMoney = document.getElementById("pay-modal-total-money");
+const payModalPaidMoney = document.getElementById("pay-modal-paid-money");
+const payModalDebtMoney = document.getElementById("pay-modal-debt-money");
+const payAllRecordsBtn = document.getElementById("pay-all-records-btn");
+const payModalRecordsBody = document.getElementById("pay-modal-records-body");
+const closePayModalBtn = document.getElementById("close-pay-modal-btn");
+const closePayModalFooterBtn = document.getElementById("close-pay-modal-footer-btn");
+
+// Modallar: Silme Modalı
 const deleteModal = document.getElementById("delete-modal");
 const deleteModalText = document.getElementById("delete-modal-text");
 const cancelDeleteBtn = document.getElementById("cancel-delete-btn");
 const confirmDeleteBtn = document.getElementById("confirm-delete-btn");
+
+let activeModalCustomer = null;
 
 // ============================================================================
 // 4. BAŞLANGIÇ (INIT) & TARİH SEÇİCİLERİ (GÜN / AY / YIL)
@@ -332,9 +346,10 @@ function setupEventListeners() {
   // Admin Yeni Müşteri/Üretici Ekleme Formu
   newCustomerForm.addEventListener("submit", handleCreateNewCustomer);
 
-  // Müşteri Portalı Canlı Hesaplama & Form
-  if (custInputAmount) custInputAmount.addEventListener("input", handleCustomerLiveCalc);
-  if (custMilkForm) custMilkForm.addEventListener("submit", handleCustomerFormSubmit);
+  // Müşteri Teslimat & Borç Ödeme Modalı (Admin)
+  if (closePayModalBtn) closePayModalBtn.addEventListener("click", closeCustomerPaymentModal);
+  if (closePayModalFooterBtn) closePayModalFooterBtn.addEventListener("click", closeCustomerPaymentModal);
+  if (payAllRecordsBtn) payAllRecordsBtn.addEventListener("click", markAllLogsPaidForCustomer);
 
   // Silme Modalı
   if (cancelDeleteBtn) cancelDeleteBtn.addEventListener("click", closeDeleteModal);
@@ -597,6 +612,7 @@ function handleAddFormProducer() {
   const name = customerNameInput.value.trim();
   const amount = parseFloat(customerAmountInput.value);
   const pPrice = parseFloat(publicPriceInput.value) || publicPrice;
+  const isPaid = customerPaidCheckbox ? customerPaidCheckbox.checked : false;
 
   if (!name) {
     showToast("Lütfen süt teslim eden kişinin Adını girin veya seçin.", "warning");
@@ -620,11 +636,13 @@ function handleAddFormProducer() {
     miktar: amount,
     birimFiyat: pPrice,
     tutar: tutar,
+    odendi: isPaid,
     musteriKullaniciAdi: username
   });
 
   customerNameInput.value = "";
   customerAmountInput.value = "";
+  if (customerPaidCheckbox) customerPaidCheckbox.checked = false;
   customerNameInput.focus();
 
   renderFormProducerList();
@@ -637,10 +655,20 @@ function handleRemoveFormProducer(id) {
   handleLiveCalculation();
 }
 
+function toggleFormProducerPaid(id) {
+  const prod = formProducers.find(p => p.id === id);
+  if (prod) {
+    prod.odendi = !prod.odendi;
+    renderFormProducerList();
+  }
+}
+
 function renderFormProducerList() {
   if (!customerListBox) return;
   const totalHalkSut = formProducers.reduce((acc, p) => acc + (Number(p.miktar) || 0), 0);
   const totalHalkBorc = formProducers.reduce((acc, p) => acc + (Number(p.tutar) || 0), 0);
+  const totalPaid = formProducers.filter(p => p.odendi).reduce((acc, p) => acc + (Number(p.tutar) || 0), 0);
+  const remainingDebt = +(totalHalkBorc - totalPaid).toFixed(2);
 
   if (formProducers.length === 0) {
     customerListBox.innerHTML = `
@@ -652,7 +680,7 @@ function renderFormProducerList() {
     return;
   }
 
-  badgeHalkBorc.textContent = `Halka: ${totalHalkBorc.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺ (${totalHalkSut} LT)`;
+  badgeHalkBorc.textContent = `Toplam: ${totalHalkBorc.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺ (Ödenen: ${totalPaid.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺ | Kalan: ${remainingDebt.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺)`;
 
   customerListBox.innerHTML = "";
   formProducers.forEach(prod => {
@@ -663,12 +691,20 @@ function renderFormProducerList() {
         <div class="w-6 h-6 rounded-full bg-amber-100 text-amber-800 font-bold flex items-center justify-center text-[10px] flex-shrink-0">
           ${prod.adSoyad.charAt(0).toUpperCase()}
         </div>
-        <span class="font-semibold text-slate-800 truncate">${escapeHtml(prod.adSoyad)}</span>
+        <div class="truncate">
+          <span class="font-semibold text-slate-800">${escapeHtml(prod.adSoyad)}</span>
+          <span class="text-[10px] text-slate-400 block">${Number(prod.miktar).toLocaleString("tr-TR")} LT &bull; ${prod.tutar.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</span>
+        </div>
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
-        <span class="font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
-          ${Number(prod.miktar).toLocaleString("tr-TR")} LT &bull; ${prod.tutar.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺
-        </span>
+        <button 
+          type="button" 
+          data-id="${prod.id}"
+          class="toggle-form-paid-btn px-2 py-0.5 rounded-lg text-[10px] font-extrabold transition ${prod.odendi ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-rose-100 text-rose-800 border border-rose-300'}"
+          title="Ödeme durumunu değiştirmek için tıklayın"
+        >
+          ${prod.odendi ? '✓ Ödendi' : '⏳ Ödenmedi'}
+        </button>
         <button 
           type="button" 
           data-id="${prod.id}" 
@@ -682,6 +718,10 @@ function renderFormProducerList() {
       </div>
     `;
     customerListBox.appendChild(item);
+  });
+
+  customerListBox.querySelectorAll(".toggle-form-paid-btn").forEach(btn => {
+    btn.addEventListener("click", () => toggleFormProducerPaid(btn.dataset.id));
   });
 
   customerListBox.querySelectorAll(".remove-prod-btn").forEach(btn => {
@@ -751,7 +791,7 @@ async function handleAdminFormSubmit(e) {
     // 1. Günlük süt kaydını Firestore'a ekle
     await addDoc(collection(db, COL_RECORDS), recordPayload);
 
-    // 2. Müşteri loglarını Firestore'a işle
+    // 2. Müşteri loglarını Firestore'a işle (Ödendi/Ödenmedi durumuyla beraber)
     for (const prod of formProducers) {
       if (prod.musteriKullaniciAdi) {
         await addDoc(collection(db, COL_CUSTOMER_LOGS), {
@@ -761,7 +801,8 @@ async function handleAdminFormSubmit(e) {
           miktar: Number(prod.miktar),
           birimFiyat: Number(prod.birimFiyat || pPrice),
           tutar: Number(prod.tutar),
-          not: "Admin tarafından kaydedildi",
+          odendi: !!prod.odendi, // <--- Ödeme Durumu
+          not: prod.odendi ? "Admin tarafından eklendi (Ödendi)" : "Admin tarafından eklendi (Ödenmedi - Bekliyor)",
           olusturulduAt: serverTimestamp()
         });
       }
@@ -773,6 +814,7 @@ async function handleAdminFormSubmit(e) {
     formProducers = [];
     renderFormProducerList();
     setDefaultDates();
+    if (customerPaidCheckbox) customerPaidCheckbox.checked = false;
     factoryPriceInput.value = factoryPrice;
     publicPriceInput.value = publicPrice;
     handleLiveCalculation();
@@ -983,7 +1025,9 @@ function renderCustomersTable() {
   allCustomers.forEach(cust => {
     const custLogs = allCustomerLogs.filter(l => l.musteriKullaniciAdi === cust.kullaniciAdi);
     const totalMilk = custLogs.reduce((acc, l) => acc + (Number(l.miktar) || 0), 0);
-    const totalOdenen = custLogs.reduce((acc, l) => acc + (Number(l.tutar) || (Number(l.miktar) * publicPrice)), 0);
+    const totalHakedis = custLogs.reduce((acc, l) => acc + (Number(l.tutar) || (Number(l.miktar) * publicPrice)), 0);
+    const totalPaid = custLogs.filter(l => l.odendi).reduce((acc, l) => acc + (Number(l.tutar) || (Number(l.miktar) * publicPrice)), 0);
+    const remainingDebt = +(totalHakedis - totalPaid).toFixed(2);
 
     const tr = document.createElement("tr");
     tr.className = "hover:bg-slate-50 transition-colors";
@@ -1000,10 +1044,27 @@ function renderCustomersTable() {
       <td class="py-3 px-3 whitespace-nowrap font-bold text-slate-800">
         ${totalMilk.toLocaleString("tr-TR")} LT
       </td>
-      <td class="py-3 px-3 whitespace-nowrap font-extrabold text-amber-700">
-        ${totalOdenen.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺
+      <td class="py-3 px-3 whitespace-nowrap font-extrabold text-slate-800">
+        ${totalHakedis.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺
       </td>
-      <td class="py-3 px-3 whitespace-nowrap text-right">
+      <td class="py-3 px-3 whitespace-nowrap">
+        <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200">
+          ${totalPaid.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺
+        </span>
+      </td>
+      <td class="py-3 px-3 whitespace-nowrap">
+        <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-extrabold ${remainingDebt > 0 ? 'bg-rose-50 text-rose-800 border border-rose-200' : 'bg-slate-100 text-slate-600'}">
+          ${remainingDebt.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺
+        </span>
+      </td>
+      <td class="py-3 px-3 whitespace-nowrap text-right flex items-center justify-end gap-1.5">
+        <button 
+          data-username="${cust.kullaniciAdi}" 
+          class="open-payment-btn px-2.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition flex items-center gap-1 shadow-2xs"
+          title="Teslimatları & Ödeme Durumlarını Yönet"
+        >
+          <span>💳 Ödeme & Detay</span>
+        </button>
         <button 
           data-id="${cust.id}" 
           data-name="${escapeHtml(cust.adSoyad)}"
@@ -1019,6 +1080,12 @@ function renderCustomersTable() {
     customersTableBody.appendChild(tr);
   });
 
+  // Ödeme & Detay Butonları
+  customersTableBody.querySelectorAll(".open-payment-btn").forEach(btn => {
+    btn.addEventListener("click", () => openCustomerPaymentModal(btn.dataset.username));
+  });
+
+  // Sil Butonları
   customersTableBody.querySelectorAll(".delete-customer-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       if (confirm(`"${btn.dataset.name}" isimli müşteriyi silmek istediğinize emin misiniz?`)) {
@@ -1028,6 +1095,125 @@ function renderCustomersTable() {
       }
     });
   });
+}
+
+// ============================================================================
+// 10.1. MÜŞTERİ ÖDEME & TESLİMAT MODALI (ADMIN İÇİN BORÇ/ÖDENDİ YÖNETİMİ)
+// ============================================================================
+function openCustomerPaymentModal(username) {
+  const cust = allCustomers.find(c => c.kullaniciAdi === username);
+  if (!cust) return;
+  activeModalCustomer = cust;
+
+  payModalCustomerName.textContent = `${cust.adSoyad} - Teslimat & Borç / Ödeme Takibi`;
+  renderCustomerPaymentModalRecords();
+  customerPaymentModal.classList.remove("hidden");
+}
+
+function closeCustomerPaymentModal() {
+  activeModalCustomer = null;
+  customerPaymentModal.classList.add("hidden");
+}
+
+function renderCustomerPaymentModalRecords() {
+  if (!activeModalCustomer || !payModalRecordsBody) return;
+  const custLogs = allCustomerLogs.filter(l => l.musteriKullaniciAdi === activeModalCustomer.kullaniciAdi);
+
+  const totalMilk = custLogs.reduce((acc, l) => acc + (Number(l.miktar) || 0), 0);
+  const totalMoney = custLogs.reduce((acc, l) => acc + (Number(l.tutar) || (Number(l.miktar) * publicPrice)), 0);
+  const totalPaid = custLogs.filter(l => l.odendi).reduce((acc, l) => acc + (Number(l.tutar) || (Number(l.miktar) * publicPrice)), 0);
+  const totalDebt = +(totalMoney - totalPaid).toFixed(2);
+
+  payModalTotalMilk.textContent = `${totalMilk.toLocaleString("tr-TR")} LT`;
+  payModalTotalMoney.textContent = `${totalMoney.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`;
+  payModalPaidMoney.textContent = `${totalPaid.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`;
+  payModalDebtMoney.textContent = `${totalDebt.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`;
+
+  payModalRecordsBody.innerHTML = "";
+
+  if (custLogs.length === 0) {
+    payModalRecordsBody.innerHTML = `
+      <tr>
+        <td colspan="5" class="py-8 text-center text-xs text-slate-400 italic">
+          Bu müşteri adına henüz süt teslimat kaydı bulunmuyor.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  custLogs.forEach(log => {
+    const tr = document.createElement("tr");
+    tr.className = "hover:bg-slate-50 transition-colors";
+    const dateStr = formatDisplayDate(log.tarih);
+    const tutar = Number(log.tutar) || (Number(log.miktar) * (log.birimFiyat || publicPrice));
+    const isPaid = !!log.odendi;
+
+    tr.innerHTML = `
+      <td class="py-2.5 px-3 font-semibold text-slate-800 whitespace-nowrap">${dateStr}</td>
+      <td class="py-2.5 px-2 font-bold text-slate-900 whitespace-nowrap">${Number(log.miktar).toLocaleString("tr-TR")} LT</td>
+      <td class="py-2.5 px-2 font-bold text-indigo-700 whitespace-nowrap">${tutar.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</td>
+      <td class="py-2.5 px-2 whitespace-nowrap">
+        ${isPaid 
+          ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">✓ Ödendi</span>` 
+          : `<span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">⏳ Ödenmedi</span>`}
+      </td>
+      <td class="py-2.5 px-3 text-right whitespace-nowrap">
+        <button 
+          type="button" 
+          data-id="${log.id}" 
+          data-paid="${isPaid}"
+          class="toggle-log-paid-btn px-2.5 py-1 rounded-lg text-[11px] font-bold transition shadow-2xs ${isPaid ? 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}"
+        >
+          ${isPaid ? 'Ödenmedi Yap' : '✓ Ödendi Olarak İşaretle'}
+        </button>
+      </td>
+    `;
+    payModalRecordsBody.appendChild(tr);
+  });
+
+  payModalRecordsBody.querySelectorAll(".toggle-log-paid-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const logId = btn.dataset.id;
+      const currentPaid = btn.dataset.paid === "true";
+      toggleCustomerLogPaid(logId, !currentPaid);
+    });
+  });
+}
+
+async function toggleCustomerLogPaid(logId, newStatus) {
+  try {
+    await setDoc(doc(db, COL_CUSTOMER_LOGS, logId), {
+      odendi: newStatus,
+      odendiGuncellendiAt: serverTimestamp()
+    }, { merge: true });
+
+    showToast(newStatus ? "Ödeme 'Ödendi' olarak işaretlendi!" : "Kayıt 'Ödenmedi' olarak güncellendi.", "success");
+  } catch (err) {
+    showToast("Ödeme durumu güncellenirken hata: " + err.message, "error");
+  }
+}
+
+async function markAllLogsPaidForCustomer() {
+  if (!activeModalCustomer) return;
+  const unpaidLogs = allCustomerLogs.filter(l => l.musteriKullaniciAdi === activeModalCustomer.kullaniciAdi && !l.odendi);
+
+  if (unpaidLogs.length === 0) {
+    showToast("Bu müşterinin zaten tüm teslimatları ödenmiş durumda.", "info");
+    return;
+  }
+
+  try {
+    for (const log of unpaidLogs) {
+      await setDoc(doc(db, COL_CUSTOMER_LOGS, log.id), {
+        odendi: true,
+        odendiGuncellendiAt: serverTimestamp()
+      }, { merge: true });
+    }
+    showToast(`${activeModalCustomer.adSoyad} için tüm borçlar 'Ödendi' olarak kapatıldı!`, "success");
+  } catch (err) {
+    showToast("Toplu ödeme hatası: " + err.message, "error");
+  }
 }
 
 function switchAdminTab(tab) {
@@ -1045,7 +1231,7 @@ function switchAdminTab(tab) {
 }
 
 // ============================================================================
-// 11. MÜŞTERİ / ÜRETİCİ PORTALI
+// 11. MÜŞTERİ / ÜRETİCİ PORTALI (TAMAMEN SALT OKUNUR & KİŞİSEL TAKİP)
 // ============================================================================
 let myCustomerLogs = [];
 
@@ -1071,58 +1257,16 @@ function listenToMyCustomerLogs(username) {
   }
 }
 
-function handleCustomerLiveCalc() {
-  const amount = parseFloat(custInputAmount.value) || 0;
-  const total = +(amount * publicPrice).toFixed(2);
-  custLiveCalcTotal.textContent = `${total.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`;
-}
-
-async function handleCustomerFormSubmit(e) {
-  e.preventDefault();
-  const dateVal = getCustomerSelectedDate();
-  const amount = parseFloat(custInputAmount.value);
-  const note = custInputNote.value.trim();
-
-  if (!dateVal) {
-    showToast("Lütfen geçerli bir teslim tarihi seçin.", "warning");
-    return;
-  }
-
-  if (isNaN(amount) || amount <= 0) {
-    showToast("Lütfen teslim ettiğiniz süt miktarını girin.", "warning");
-    custInputAmount.focus();
-    return;
-  }
-
-  const tutar = +(amount * publicPrice).toFixed(2);
-
-  try {
-    await addDoc(collection(db, COL_CUSTOMER_LOGS), {
-      tarih: dateVal,
-      musteriKullaniciAdi: currentUser.kullaniciAdi,
-      musteriAdSoyad: currentUser.adSoyad,
-      miktar: amount,
-      birimFiyat: publicPrice,
-      tutar: tutar,
-      not: note || "Üretici teslimatı",
-      olusturulduAt: serverTimestamp()
-    });
-
-    showToast("Süt teslimatınız başarıyla işlendi!", "success");
-    custMilkForm.reset();
-    setDefaultDates();
-    handleCustomerLiveCalc();
-  } catch (err) {
-    showToast("Kayıt hatası: " + err.message, "error");
-  }
-}
-
 function updateCustomerPortalStats() {
   const totalMilk = myCustomerLogs.reduce((acc, l) => acc + (Number(l.miktar) || 0), 0);
-  const totalMoney = myCustomerLogs.reduce((acc, l) => acc + (Number(l.tutar) || (Number(l.miktar) * publicPrice)), 0);
+  const totalMoney = myCustomerLogs.reduce((acc, l) => acc + (Number(l.tutar) || (Number(l.miktar) * (l.birimFiyat || publicPrice))), 0);
+  const totalPaid = myCustomerLogs.filter(l => l.odendi).reduce((acc, l) => acc + (Number(l.tutar) || (Number(l.miktar) * (l.birimFiyat || publicPrice))), 0);
+  const remainingDebt = +(totalMoney - totalPaid).toFixed(2);
 
   if (custTotalMilk) custTotalMilk.textContent = totalMilk.toLocaleString("tr-TR");
   if (custTotalMoney) custTotalMoney.textContent = totalMoney.toLocaleString("tr-TR", { minimumFractionDigits: 2 });
+  if (custPaidMoney) custPaidMoney.textContent = totalPaid.toLocaleString("tr-TR", { minimumFractionDigits: 2 });
+  if (custPendingMoney) custPendingMoney.textContent = remainingDebt.toLocaleString("tr-TR", { minimumFractionDigits: 2 });
   if (custTotalRecordsCount) custTotalRecordsCount.textContent = `${myCustomerLogs.length} teslimat kaydı`;
 }
 
@@ -1141,16 +1285,21 @@ function renderCustomerPortalTable() {
     const tr = document.createElement("tr");
     tr.className = "hover:bg-slate-50 transition-colors";
 
-    let dateStr = formatDisplayDate(log.tarih);
-
+    const dateStr = formatDisplayDate(log.tarih);
     const price = log.birimFiyat || publicPrice;
-    const tutar = log.tutar || (Number(log.miktar) * price);
+    const tutar = Number(log.tutar) || (Number(log.miktar) * price);
+    const isPaid = !!log.odendi;
 
     tr.innerHTML = `
       <td class="py-3 px-4 font-semibold text-slate-900 whitespace-nowrap">${dateStr}</td>
       <td class="py-3 px-3 font-bold text-slate-800 whitespace-nowrap">${Number(log.miktar).toLocaleString("tr-TR")} LT</td>
       <td class="py-3 px-3 whitespace-nowrap text-xs text-slate-500">${price.toFixed(2)} ₺ / LT</td>
-      <td class="py-3 px-3 font-extrabold text-amber-700 whitespace-nowrap">${tutar.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</td>
+      <td class="py-3 px-3 font-extrabold text-indigo-700 whitespace-nowrap">${tutar.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</td>
+      <td class="py-3 px-3 whitespace-nowrap">
+        ${isPaid 
+          ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">✓ Ödendi</span>` 
+          : `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-rose-100 text-rose-800 border border-rose-200">⏳ Ödenmedi (Alacak)</span>`}
+      </td>
       <td class="py-3 px-3 text-xs text-slate-500 whitespace-nowrap">${escapeHtml(log.not || "-")}</td>
     `;
     custRecordsTableBody.appendChild(tr);
@@ -1166,6 +1315,9 @@ function listenToAllCustomerLogs() {
         allCustomerLogs.push({ id: docSnap.id, ...docSnap.data() });
       });
       renderCustomersTable();
+      if (activeModalCustomer) {
+        renderCustomerPaymentModalRecords();
+      }
     });
   } catch (err) {
     console.error("Müşteri logları dinlenemedi:", err);
@@ -1173,7 +1325,7 @@ function listenToAllCustomerLogs() {
 }
 
 // ============================================================================
-// 12. E-POSTA RAPORLAMA YÖNETİMİ (GÜNLÜK & AYLIK)
+// 12. E-POSTA RAPORLAMA YÖNETİMİ (GÜNLÜK & AYLIK DETAYLI RAPOR)
 // ============================================================================
 function openEmailModal() {
   if (currentUser && currentUser.email) {
@@ -1209,11 +1361,41 @@ function updateReportPreview() {
 
   const totals = filtered.reduce((acc, r) => {
     acc.milk += Number(r.toplamUretim || r.toplananSut) || 0;
+    acc.factoryMilk += Number(r.fabrikaSut) || 0;
     acc.factoryMoney += Number(r.fabrikaGelir || (Number(r.fabrikaSut) * (r.fabrikaFiyat || factoryPrice))) || 0;
     acc.publicMoney += Number(r.halkaOdenecekPara) || 0;
     return acc;
-  }, { milk: 0, factoryMoney: 0, publicMoney: 0 });
+  }, { milk: 0, factoryMilk: 0, factoryMoney: 0, publicMoney: 0 });
 
+  // Bu dönemdeki üreticileri topla
+  const producerMap = {};
+  filtered.forEach(r => {
+    if (Array.isArray(r.halkUreticiler)) {
+      r.halkUreticiler.forEach(p => {
+        const key = p.adSoyad;
+        if (!producerMap[key]) {
+          producerMap[key] = {
+            adSoyad: p.adSoyad,
+            miktar: 0,
+            tutar: 0,
+            odendiTutar: 0,
+            borcTutar: 0
+          };
+        }
+        producerMap[key].miktar += Number(p.miktar) || 0;
+        producerMap[key].tutar += Number(p.tutar) || 0;
+        if (p.odendi) {
+          producerMap[key].odendiTutar += Number(p.tutar) || 0;
+        } else {
+          producerMap[key].borcTutar += Number(p.tutar) || 0;
+        }
+      });
+    }
+  });
+
+  const producerList = Object.values(producerMap);
+  const totalPaid = producerList.reduce((acc, p) => acc + p.odendiTutar, 0);
+  const totalDebt = producerList.reduce((acc, p) => acc + p.borcTutar, 0);
   const netProfit = +(totals.factoryMoney - totals.publicMoney).toFixed(2);
 
   previewTotalMilk.textContent = `${totals.milk.toLocaleString("tr-TR")} LT`;
@@ -1221,7 +1403,39 @@ function updateReportPreview() {
   previewPublicMoney.textContent = `${totals.publicMoney.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`;
   previewNetProfit.textContent = `${netProfit.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`;
 
-  return { isMonthly, totals, netProfit, filtered };
+  if (previewPaidMoney) previewPaidMoney.textContent = `${totalPaid.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`;
+  if (previewDebtMoney) previewDebtMoney.textContent = `${totalDebt.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`;
+
+  // Önizleme Üretici Listesi
+  if (previewProducersList) {
+    previewProducersList.innerHTML = "";
+    if (producerList.length === 0) {
+      previewProducersList.innerHTML = `
+        <div class="text-slate-400 italic text-[11px] py-2 text-center bg-white rounded-xl border border-dashed border-slate-200">
+          Bu dönem için üretici teslimat kaydı bulunamadı.
+        </div>
+      `;
+    } else {
+      producerList.forEach(prod => {
+        const row = document.createElement("div");
+        row.className = "flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200 text-xs";
+        row.innerHTML = `
+          <div>
+            <strong class="text-slate-800">${escapeHtml(prod.adSoyad)}</strong>
+            <span class="text-slate-400 text-[10px] block">${prod.miktar.toLocaleString("tr-TR")} LT &bull; ${prod.tutar.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</span>
+          </div>
+          <div class="text-right">
+            <span class="inline-block px-2 py-0.5 rounded-lg text-[10px] font-extrabold ${prod.borcTutar === 0 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'}">
+              ${prod.borcTutar === 0 ? '✓ Ödendi' : `Borç: ${prod.borcTutar.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺`}
+            </span>
+          </div>
+        `;
+        previewProducersList.appendChild(row);
+      });
+    }
+  }
+
+  return { isMonthly, totals, netProfit, totalPaid, totalDebt, producerList, filtered };
 }
 
 function handleSendEmailReport(e) {
@@ -1232,30 +1446,58 @@ function handleSendEmailReport(e) {
     return;
   }
 
-  const { isMonthly, totals, netProfit } = updateReportPreview();
+  const { isMonthly, totals, netProfit, totalPaid, totalDebt, producerList } = updateReportPreview();
   const periodText = isMonthly ? "Aylık" : "Günlük";
   const subject = encodeURIComponent(`Çiftlik Süt ve Finans ${periodText} Raporu (${new Date().toLocaleDateString("tr-TR")})`);
+
+  // Üretici listesi metin çıktısı
+  let producerText = "Bu dönem için üretici teslimatı bulunmuyor.";
+  if (producerList && producerList.length > 0) {
+    producerText = producerList.map((p, idx) => {
+      const status = p.borcTutar === 0 ? "[ÖDENDİ]" : `[ÖDENMEDİ - Kalan Borç: ${p.borcTutar.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL]`;
+      return `${idx + 1}. ${p.adSoyad}: ${p.miktar.toLocaleString("tr-TR")} LT -> Toplam: ${p.tutar.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL | Durum: ${status}`;
+    }).join("\n");
+  }
 
   const bodyText = encodeURIComponent(
 `Sayın Çiftlik Yöneticisi,
 
-${periodText} Süt Üretim, Satış ve Alacak Raporunuz aşağıdadır:
+==================================================
+ÇİFTLİK SÜT & FİNANS ${periodText.toUpperCase()} RAPORU
+Tarih: ${new Date().toLocaleDateString("tr-TR")}
+==================================================
 
+1. GENEL FİNANSAL ÖZET:
 --------------------------------------------------
-📅 Dönem: ${isMonthly ? "Bu Ayın Özeti" : "Bugünün Özeti"}
-🥛 Toplanan Toplam Süt: ${totals.milk.toLocaleString("tr-TR")} Litre
-🏭 Fabrikaya Satış Geliri: ${totals.factoryMoney.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL
-👥 Halka / Üreticilere Verilecek Para: ${totals.publicMoney.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL
+🥛 Toplanan Toplam Süt (Üretim): ${totals.milk.toLocaleString("tr-TR")} Litre
+🏭 Fabrikaya Satılan Süt: ${totals.factoryMilk.toLocaleString("tr-TR")} Litre
+🏭 Fabrika Satış Geliri: ${totals.factoryMoney.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL
+👥 Halka / Üreticilere Toplam Borç: ${totals.publicMoney.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL
+   - Halka Ödenen Tutar: ${totalPaid.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL
+   - Halka Kalan Borç: ${totalDebt.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL
 💰 Net Çiftlik Kârı: ${netProfit.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL
---------------------------------------------------
 
-Bu rapor Çiftlik Süt Takip Sistemi tarafından otomatik olarak oluşturulmuştur.`
+--------------------------------------------------
+2. ÜRETİCİ / KÖYLÜ BAZLI SÜT VE ÖDEME LİSTESİ:
+--------------------------------------------------
+${producerText}
+
+--------------------------------------------------
+3. FABRİKA SATIŞ DETAYI:
+--------------------------------------------------
+- Alıcı: Fabrika
+- Satılan Miktar: ${totals.factoryMilk.toLocaleString("tr-TR")} Litre
+- Satış Birim Fiyatı: ${factoryPrice.toFixed(2)} TL / LT
+- Toplam Alacak / Tahsilat: ${totals.factoryMoney.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL
+==================================================
+
+Bu rapor Çiftlik Süt Yönetim Portalı tarafından otomatik olarak oluşturulmuştur.`
   );
 
   // E-posta istemcisini hazır şablon ile aç
   window.open(`mailto:${targetEmail}?subject=${subject}&body=${bodyText}`, "_blank");
   closeEmailModal();
-  showToast("Rapor e-posta taslağı hazırlandı!", "success");
+  showToast("Detaylı rapor e-posta taslağı hazırlandı!", "success");
 }
 
 // ============================================================================
